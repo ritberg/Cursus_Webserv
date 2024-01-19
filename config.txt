@@ -1,0 +1,1 @@
+web_root /Users/mmakarov/Documents/Cursus_Webserv_github
