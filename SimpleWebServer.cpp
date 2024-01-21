@@ -10,7 +10,6 @@
 #include <map>
 
 #define MAX_BUFFER_SIZE 1024
-#define PORT 8181
 
 std::map<std::string, std::string> serverConfig; //global variable. is it allowed??
 
@@ -28,96 +27,41 @@ void readConfigFile(const std::string& configFile)
     {
         std::istringstream iss(line);
         std::string key, value;
+        if (line.find("server") == 0)
+            continue;
         if (iss >> key >> value)
             serverConfig[key] = value;
     }
 }
 
-// Function to read the content of a file
-std::string readFile(const std::string& filePath)
+std::string handleGetRequest(const std::string& path)
 {
-    std::ifstream file(filePath);
-    if (file.is_open())
+    if (path == "/image.html")
     {
-        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        return content;
+        std::ifstream file("image.html");
+        if (file.is_open())
+        {
+            std::ostringstream oss;
+            oss << "HTTP/1.1 200 Ok\r\n\r\n"; // we need to add a header to each html file
+            oss << file.rdbuf();
+            return oss.str();
+        }
+        else
+            return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
     }
-    else
-        return "File not found";
+    return "HTTP/1.1 200 Ok\r\n\r\n <html><body><h1>Hello, World!</h1></body></html>"; // default response
 }
 
-// Function to handle HTTP GET requests
-std::string handleGetRequest(const std::string& path) {
-    // Construct the full path to the requested file
-    std::string fullPath = serverConfig["web_root"] + path;
-
-    // Read the content of the file
-    std::string content = readFile(fullPath);
-
-    // Return the content as the response
-    return content;
-}
-
-// Function to handle HTTP requests
-std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& requestBody) {
+std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& requestBody)
+{
     if (method == "GET")
         return handleGetRequest(path);
-    // else if (method == "POST")
+    // else if (method == "POST")                // TO DO
     //     return handlePostRequest(path, requestBody);
-    // else 
-    //     // Handle other HTTP methods if needed
-    //     return "Unsupported HTTP method";
+    else 
+        return "Unsupported HTTP method";
 
 }
-
-/*
-void handleClient(int clientSocket, const std::string& webRoot)
-{
-    char buffer[MAX_BUFFER_SIZE];
-    memset(buffer, 0, sizeof(buffer));
-
-    if (recv(clientSocket, buffer, sizeof(buffer), 0) <= 0)     // Receive data from client
-    {
-        perror("Error receiving data");
-        return;
-    }
-
-    std::istringstream iss(buffer);                        // Extract requested webpage from the HTTP request
-    std::string requestType, requestedPage, httpVersion;
-    iss >> requestType >> requestedPage >> httpVersion;
-
-    if (requestType != "GET")
-    {
-        perror("Invalid request");
-        return;
-    }
-
-    std::string fullPath = webRoot + requestedPage;
-
-    std::ifstream file(fullPath.c_str());
-    if (!file.is_open())
-    {
-        perror("Error opening file");
-        return;
-    }
-
-    std::ostringstream fileContent;    // Read the file content
-    fileContent << file.rdbuf();
-    file.close();
-
-    std::ostringstream response;   // Prepare the HTTP response
-    response << "GET /linux/man-pages/man2/recv.2.html HTTP/1.1\r\n";
-    response << "Host: man7.org\r\n";
-    response << "Connection: close\r\n";
-    response << "\r\n";
-    response << fileContent.str();
-
-    send(clientSocket, response.str().c_str(), response.str().size(), 0); // Send the response back to the client
-
-    close(clientSocket);
-}
-*/
-
 
 
 int main(int argc, char** argv)
@@ -131,7 +75,6 @@ int main(int argc, char** argv)
     readConfigFile(argv[1]);
 
     int serverSocket;
-
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("Error creating socket");
@@ -157,7 +100,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    std::cout << "Server listening on port " << PORT << "..." << std::endl;
+    std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
 
     while (1)
     {
@@ -178,29 +121,18 @@ int main(int argc, char** argv)
             continue;
         }
 
-        // Parse the HTTP request
-        std::istringstream request(buffer);
+        std::istringstream request(buffer);        // Parse the HTTP request
         std::string method, path, protocol, line;
         request >> method >> path >> protocol;
 
-        std::string requestBody;
-        //process the request body and header. example of a request:
-        
-        // GET /path/to/resource HTTP/1.1
-        // Host: www.example.com
-        // User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:97.0) Gecko/20100101 Firefox/97.0
-        // Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
-        // Accept-Language: en-US,en;q=0.5
-        // Connection: keep-alive
+        std::string requestBody; // will be useful for POST
         
         std::string response = handleHttpRequest(method, path, requestBody);
 
-            // Send the HTTP response to the client
-        if (write(clientSocket, response.c_str(), response.size()) == -1)
+        if (write(clientSocket, response.c_str(), response.size()) == -1) // Send the HTTP response to the client
             std::cerr << "Error writing to socket" << std::endl;
         
-        close(clientSocket);
-
+        close(clientSocket); 
     }
     close(serverSocket);
 
