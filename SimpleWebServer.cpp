@@ -16,7 +16,6 @@
 
 std::map<std::string, std::string> serverConfig; //global variable. is it allowed??
 
-
 void readConfigFile(const std::string& configFile)
 {
     std::ifstream file(configFile);
@@ -92,6 +91,7 @@ int main(int argc, char** argv)
     }
 
     readConfigFile(argv[1]);
+
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0)
     {
@@ -99,10 +99,17 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    struct sockaddr_in serverAddr = {0};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(std::stoi(serverConfig["listen"]));
-    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); //set add to localhost
+    int opt = 1;
+    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) // reuse the same socket and avoid "Error binding: Address already in use"
+    {
+        perror("Setsockopt failed");
+        exit(1);
+    }
+
+    struct sockaddr_in serverAddr = {0};                            // Structure to hold the server address
+    serverAddr.sin_family = AF_INET;                               // set IP addresses to IPv4
+    serverAddr.sin_port = htons(std::stoi(serverConfig["listen"])); // set the port from config.txt
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);           //set add to localhost
 
     if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
     {
@@ -120,26 +127,25 @@ int main(int argc, char** argv)
 
     std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
 
-
-    int clientSockets[MAX_CLIENTS];
+    int clientSockets[MAX_CLIENTS];   //store client socket descriptors
     
-    fd_set activeSockets, readySockets;
-    FD_ZERO(&activeSockets);
-    FD_SET(serverSocket, &activeSockets);  // add the server socket to the set
-    char buffer[MAX_BUFFER_SIZE]; 
-    int next_id = 0;  
+    fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of file descriptors. see select
+    FD_ZERO(&activeSockets);             //removing all file descriptors the set of fds
+    FD_SET(serverSocket, &activeSockets);  // add the server socket to the set of fds
+    char buffer[MAX_BUFFER_SIZE];         // storing received messages TO DO: a buffer for each client!!
+    int next_id = 0;                    // id of the next client connection
     int maxSocket = serverSocket;
 
     while (1)
     {
-        readySockets = activeSockets;
+        readySockets = activeSockets;   // Copy the active sockets set for use with select()
         if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) < 0)
         {
             std::cerr << "Error in select(): " << strerror(errno) << std::endl;
             exit(1);
         }
     
-        for (int socketId = 0; socketId <= maxSocket; socketId++) 
+        for (int socketId = 0; socketId <= maxSocket; socketId++)  // Check each socket for activity
         {
             if (FD_ISSET(socketId, &readySockets)) 
             {
@@ -153,9 +159,10 @@ int main(int argc, char** argv)
                     }
 
                     FD_SET(clientSocket, &activeSockets);
-                    maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket;
+                    maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket; // Update the max socket descriptor
+                                                                    // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
+                                                                    // and the highest fd value is determined by the maximum fd in the sets 
                     clientSockets[next_id++] = clientSocket;
-
                 } 
                 else 
                 {
@@ -168,6 +175,7 @@ int main(int argc, char** argv)
                             if (clientSockets[i] != socketId)
                             {
                                 std::string response = handleHttpRequest(buffer);
+                                std::cout << "write in the first for loop " << clientSockets[i] << std::endl;
                                 write(clientSockets[i], response.c_str(), response.size());
                             }
                         }
@@ -182,6 +190,7 @@ int main(int argc, char** argv)
                             if (clientSockets[i] != socketId) 
                             {
                                 std::string response = handleHttpRequest(buffer);
+                                std::cout << "write in the second for loop " << clientSockets[i] << std::endl;
                                 write(clientSockets[i], response.c_str(), response.size());
                             }
                         }
