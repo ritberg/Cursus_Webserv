@@ -6,12 +6,16 @@
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
+#include <stdio.h>
 #include <arpa/inet.h>
+#include <sys/select.h>
 #include <map>
 
 #define MAX_BUFFER_SIZE 1024
+#define MAX_CLIENTS 10
 
 std::map<std::string, std::string> serverConfig; //global variable. is it allowed??
+
 
 void readConfigFile(const std::string& configFile)
 {
@@ -46,14 +50,29 @@ std::string handleGetRequest(const std::string& path)
             oss << file.rdbuf();
             return oss.str();
         }
-        else
-            return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
     }
-    return "HTTP/1.1 200 Ok\r\n\r\n <html><body><h1>Hello, World!</h1></body></html>"; // default response
+    else
+    {
+        std::ifstream file("index.html");
+        if (file.is_open())
+        {
+            std::ostringstream oss;
+            oss << "HTTP/1.1 200 Ok\r\n\r\n"; 
+            oss << file.rdbuf();
+            return oss.str();
+        }
+    }
+    return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
 }
 
-std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& requestBody)
+std::string handleHttpRequest(char* buffer)
 {
+    std::istringstream request(buffer);        // Parse the HTTP request
+    std::string method, path, protocol, line;
+    request >> method >> path >> protocol;
+
+    std::string requestBody; // will be useful for POST
+
     if (method == "GET")
         return handleGetRequest(path);
     // else if (method == "POST")                // TO DO
@@ -73,27 +92,26 @@ int main(int argc, char** argv)
     }
 
     readConfigFile(argv[1]);
-
-    int serverSocket;
-    if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket < 0)
     {
         perror("Error creating socket");
         return EXIT_FAILURE;
     }
 
-    sockaddr_in serverAddr;
+    struct sockaddr_in serverAddr = {0};
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(std::stoi(serverConfig["listen"]));
-    serverAddr.sin_addr.s_addr = INADDR_ANY; 
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); //set add to localhost
 
-    if (bind(serverSocket, reinterpret_cast<struct sockaddr*>(&serverAddr), sizeof(serverAddr)) == -1)
+    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
     {
         perror("Error binding");
         close(serverSocket);
         return EXIT_FAILURE;
     }
 
-    if (listen(serverSocket, 5) == -1)
+    if (listen(serverSocket, MAX_CLIENTS) < 0)
     {
         perror("Error listening");
         close(serverSocket);
@@ -102,39 +120,118 @@ int main(int argc, char** argv)
 
     std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
 
+
+    int clientSockets[MAX_CLIENTS];
+    
+    fd_set activeSockets, readySockets;
+    FD_ZERO(&activeSockets);
+    FD_SET(serverSocket, &activeSockets);  // add the server socket to the set
+    char buffer[MAX_BUFFER_SIZE]; 
+    int next_id = 0;  
+    int maxSocket = serverSocket;
+
     while (1)
     {
-        int clientSocket = accept(serverSocket, NULL, NULL);
-        if (clientSocket == -1)
+        readySockets = activeSockets;
+        if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) < 0)
         {
-            std::cerr << "Error accepting connection" << std::endl;
-            close(serverSocket);
-            return EXIT_FAILURE;
+            std::cerr << "Error in select(): " << strerror(errno) << std::endl;
+            exit(1);
         }
-
-        char buffer[MAX_BUFFER_SIZE];
-        memset(buffer, 0, sizeof(buffer));
-        if (read(clientSocket, buffer, sizeof(buffer) - 1) == -1)
+    
+        for (int socketId = 0; socketId <= maxSocket; socketId++) 
         {
-            std::cerr << "Error reading from socket" << std::endl;
-            close(clientSocket);
-            continue;
+            if (FD_ISSET(socketId, &readySockets)) 
+            {
+                if (socketId == serverSocket) 
+                {
+                    int clientSocket = accept(serverSocket, NULL, NULL);
+                    if (clientSocket < 0) 
+                    {
+                        perror("Error accepting client connection");
+                        exit(1);
+                    }
+
+                    FD_SET(clientSocket, &activeSockets);
+                    maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket;
+                    clientSockets[next_id++] = clientSocket;
+
+                } 
+                else 
+                {
+                    int bytesRead = recv(socketId, buffer, sizeof(buffer) - 1, 0);
+
+                    if (bytesRead <= 0) 
+                    {
+                        for (int i = 0; i < next_id; i++)
+                        {
+                            if (clientSockets[i] != socketId)
+                            {
+                                std::string response = handleHttpRequest(buffer);
+                                write(clientSockets[i], response.c_str(), response.size());
+                            }
+                        }
+                        close(socketId);
+                        FD_CLR(socketId, &activeSockets);
+                    } 
+                    else 
+                    {
+                        buffer[bytesRead] = '\0';
+                        for (int i = 0; i < next_id; i++) 
+                        {
+                            if (clientSockets[i] != socketId) 
+                            {
+                                std::string response = handleHttpRequest(buffer);
+                                write(clientSockets[i], response.c_str(), response.size());
+                            }
+                        }
+                    }
+                }
+            }
         }
-
-        std::istringstream request(buffer);        // Parse the HTTP request
-        std::string method, path, protocol, line;
-        request >> method >> path >> protocol;
-
-        std::string requestBody; // will be useful for POST
-        
-        std::string response = handleHttpRequest(method, path, requestBody);
-
-        if (write(clientSocket, response.c_str(), response.size()) == -1) // Send the HTTP response to the client
-            std::cerr << "Error writing to socket" << std::endl;
-        
-        close(clientSocket); 
+        // for (int i = 0; i < MAX_CLIENTS; ++i)
+        // {
+        //     if (clientSockets[i] > 0)
+        //     close(clientSockets[i]);
+        // }
     }
     close(serverSocket);
-
     return 0;
 }
+
+//     while (1)
+//     {
+//         int clientSocket = accept(serverSocket, NULL, NULL);
+//         if (clientSocket == -1)
+//         {
+//             std::cerr << "Error accepting connection" << std::endl;
+//             close(serverSocket);
+//             return EXIT_FAILURE;
+//         }
+
+//         char buffer[MAX_BUFFER_SIZE];
+//         memset(buffer, 0, sizeof(buffer));
+//         if (read(clientSocket, buffer, sizeof(buffer) - 1) == -1)
+//         {
+//             std::cerr << "Error reading from socket" << std::endl;
+//             close(clientSocket);
+//             continue;
+//         }
+
+//         std::istringstream request(buffer);        // Parse the HTTP request
+//         std::string method, path, protocol, line;
+//         request >> method >> path >> protocol;
+
+//         std::string requestBody; // will be useful for POST
+        
+//         std::string response = handleHttpRequest(method, path, requestBody);
+
+//         if (write(clientSocket, response.c_str(), response.size()) == -1) // Send the HTTP response to the client
+//             std::cerr << "Error writing to socket" << std::endl;
+        
+//         close(clientSocket); 
+//     }
+//     close(serverSocket);
+
+//     return 0;
+// }
