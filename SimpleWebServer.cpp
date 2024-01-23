@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <map>
+#include <vector>
 
 #define MAX_BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
@@ -126,14 +127,13 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
-
-    int clientSockets[MAX_CLIENTS];   //store client socket descriptors
+  
+    std::vector<int> clientSockets;  //store client socket descriptors
     
     fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of file descriptors. see select
     FD_ZERO(&activeSockets);             //removing all file descriptors the set of fds
     FD_SET(serverSocket, &activeSockets);  // add the server socket to the set of fds
     char buffer[MAX_BUFFER_SIZE];         // storing received messages TO DO: a buffer for each client!!
-    int next_id = 0;                    // id of the next client connection
     int maxSocket = serverSocket;
 
     while (1)
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
                     maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket; // Update the max socket descriptor
                                                                     // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
                                                                     // and the highest fd value is determined by the maximum fd in the sets 
-                    clientSockets[next_id++] = clientSocket;
+                    clientSockets.push_back(clientSocket);
                 } 
                 else 
                 {
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
 
                     if (bytesRead <= 0) 
                     {
-                        for (int i = 0; i < next_id; i++)
+                        for (int i = 0; i < clientSockets.size(); i++)
                         {
                             if (clientSockets[i] != socketId)
                             {
@@ -185,7 +185,7 @@ int main(int argc, char** argv)
                     else 
                     {
                         buffer[bytesRead] = '\0';
-                        for (int i = 0; i < next_id; i++) 
+                        for (int i = 0; i < clientSockets.size(); i++)
                         {
                             if (clientSockets[i] != socketId) 
                             {
@@ -207,40 +207,3 @@ int main(int argc, char** argv)
     close(serverSocket);
     return 0;
 }
-
-//     while (1)
-//     {
-//         int clientSocket = accept(serverSocket, NULL, NULL);
-//         if (clientSocket == -1)
-//         {
-//             std::cerr << "Error accepting connection" << std::endl;
-//             close(serverSocket);
-//             return EXIT_FAILURE;
-//         }
-
-//         char buffer[MAX_BUFFER_SIZE];
-//         memset(buffer, 0, sizeof(buffer));
-//         if (read(clientSocket, buffer, sizeof(buffer) - 1) == -1)
-//         {
-//             std::cerr << "Error reading from socket" << std::endl;
-//             close(clientSocket);
-//             continue;
-//         }
-
-//         std::istringstream request(buffer);        // Parse the HTTP request
-//         std::string method, path, protocol, line;
-//         request >> method >> path >> protocol;
-
-//         std::string requestBody; // will be useful for POST
-        
-//         std::string response = handleHttpRequest(method, path, requestBody);
-
-//         if (write(clientSocket, response.c_str(), response.size()) == -1) // Send the HTTP response to the client
-//             std::cerr << "Error writing to socket" << std::endl;
-        
-//         close(clientSocket); 
-//     }
-//     close(serverSocket);
-
-//     return 0;
-// }
