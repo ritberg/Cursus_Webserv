@@ -9,13 +9,14 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <fcntl.h>
 #include <map>
 #include <vector>
 
 #define MAX_BUFFER_SIZE 1024
-#define MAX_CLIENTS 10
+#define MAX_CLIENTS 32
 
-std::map<std::string, std::string> serverConfig; //global variable. is it allowed??
+std::map<std::string, std::string> serverConfig; //global variable
 
 void readConfigFile(const std::string& configFile)
 {
@@ -100,17 +101,24 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
+    // setsockopt allows reusing the same socket and avoiding "Error binding: Address already in use"
     int opt = 1;
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) // reuse the same socket and avoid "Error binding: Address already in use"
+    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) 
     {
         perror("Setsockopt failed");
         exit(1);
     }
 
+    // fcntl sets the non-blocking mode for both server and client sockets.
+    // Non-blocking sockets are useful to handle multiple connections concurrently
+    // without blocking the execution of the program.
+    fcntl(serverSocket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
+
+
     struct sockaddr_in serverAddr = {0};                            // Structure to hold the server address
     serverAddr.sin_family = AF_INET;                               // set IP addresses to IPv4
     serverAddr.sin_port = htons(std::stoi(serverConfig["listen"])); // set the port from config.txt
-    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);           //set add to localhost
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);           //set the addr to localhost
 
     if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
     {
@@ -130,15 +138,17 @@ int main(int argc, char** argv)
   
     std::vector<int> clientSockets;  //store client socket descriptors
     
-    fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of file descriptors. see select
-    FD_ZERO(&activeSockets);             //removing all file descriptors the set of fds
+    fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of fds. see select
+    FD_ZERO(&activeSockets);             //removing all fds from the set of fds
     FD_SET(serverSocket, &activeSockets);  // add the server socket to the set of fds
     char buffer[MAX_BUFFER_SIZE];         // storing received messages TO DO: a buffer for each client!!
     int maxSocket = serverSocket;
+    std::cout << "maxSocket initial " << maxSocket << std::endl;
 
     while (1)
     {
-        readySockets = activeSockets;   // Copy the active sockets set for use with select()
+        readySockets = activeSockets;   // Copy the active sockets set to use them with select()
+    
         if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) < 0)
         {
             std::cerr << "Error in select(): " << strerror(errno) << std::endl;
@@ -151,58 +161,63 @@ int main(int argc, char** argv)
             {
                 if (socketId == serverSocket) 
                 {
+                    std::cout << "socketId = serverSocket " << socketId << std::endl;
+                    std::cout << "serverSocket = socketId " << serverSocket << std::endl;
                     int clientSocket = accept(serverSocket, NULL, NULL);
                     if (clientSocket < 0) 
                     {
                         perror("Error accepting client connection");
                         exit(1);
                     }
+                    fcntl(clientSocket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 
                     FD_SET(clientSocket, &activeSockets);
+                    std::cout << "clientSocket1 " << clientSocket << std::endl;
+                    std::cout << "maxSocket1 " << maxSocket << std::endl;
                     maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket; // Update the max socket descriptor
                                                                     // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
                                                                     // and the highest fd value is determined by the maximum fd in the sets 
+                    std::cout << "clientSocket2 " << clientSocket << std::endl;
+                    std::cout << "maxSocket2 " << maxSocket << std::endl;
                     clientSockets.push_back(clientSocket);
+                    break; // Break after accepting a connection. Otherwise, I try to accept all the connections in the same loop
                 } 
                 else 
                 {
+                    std::cout << "hihihi " << std::endl;
                     int bytesRead = recv(socketId, buffer, sizeof(buffer) - 1, 0);
 
                     if (bytesRead <= 0) 
                     {
                         for (int i = 0; i < clientSockets.size(); i++)
                         {
+                            std::cerr << "server: client " << socketId << " just left" << std::endl;
                             if (clientSockets[i] != socketId)
                             {
                                 std::string response = handleHttpRequest(buffer);
-                                std::cout << "write in the first for loop " << clientSockets[i] << std::endl;
-                                write(clientSockets[i], response.c_str(), response.size());
+                                send(clientSockets[i], response.c_str(), response.size(), 0);
                             }
                         }
                         close(socketId);
                         FD_CLR(socketId, &activeSockets);
+                        // Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
+                        clientSockets.erase(std::remove(clientSockets.begin(), clientSockets.end(), socketId), clientSockets.end());
                     } 
                     else 
                     {
-                        buffer[bytesRead] = '\0';
                         for (int i = 0; i < clientSockets.size(); i++)
                         {
                             if (clientSockets[i] != socketId) 
                             {
                                 std::string response = handleHttpRequest(buffer);
-                                std::cout << "write in the second for loop " << clientSockets[i] << std::endl;
-                                write(clientSockets[i], response.c_str(), response.size());
+                                send(clientSockets[i], response.c_str(), response.size(), 0);
                             }
                         }
                     }
                 }
             }
+            std::cout << "how many iterations " << socketId << std::endl;
         }
-        // for (int i = 0; i < MAX_CLIENTS; ++i)
-        // {
-        //     if (clientSockets[i] > 0)
-        //     close(clientSockets[i]);
-        // }
     }
     close(serverSocket);
     return 0;
