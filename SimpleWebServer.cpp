@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -114,7 +113,6 @@ int main(int argc, char** argv)
     // without blocking the execution of the program.
     fcntl(serverSocket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 
-
     struct sockaddr_in serverAddr = {0};                            // Structure to hold the server address
     serverAddr.sin_family = AF_INET;                               // set IP addresses to IPv4
     serverAddr.sin_port = htons(std::stoi(serverConfig["listen"])); // set the port from config.txt
@@ -141,19 +139,20 @@ int main(int argc, char** argv)
     fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of fds. see select
     FD_ZERO(&activeSockets);             //removing all fds from the set of fds
     FD_SET(serverSocket, &activeSockets);  // add the server socket to the set of fds
-    char buffer[MAX_BUFFER_SIZE];         // storing received messages TO DO: a buffer for each client!!
+    char buffer[MAX_BUFFER_SIZE];         // storing received messages 
     int maxSocket = serverSocket;
-    std::cout << "maxSocket initial " << maxSocket << std::endl;
+
 
     while (1)
     {
+        memset(buffer, '\0', sizeof(buffer));
         readySockets = activeSockets;   // Copy the active sockets set to use them with select()
-    
-        if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) < 0)
+        if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) <= 0)
         {
             std::cerr << "Error in select(): " << strerror(errno) << std::endl;
             exit(1);
         }
+        std::cout << "maxSocket début " << maxSocket << std::endl;
     
         for (int socketId = 0; socketId <= maxSocket; socketId++)  // Check each socket for activity
         {
@@ -161,9 +160,9 @@ int main(int argc, char** argv)
             {
                 if (socketId == serverSocket) 
                 {
-                    std::cout << "socketId = serverSocket " << socketId << std::endl;
-                    std::cout << "serverSocket = socketId " << serverSocket << std::endl;
+                    std::cout << "ERROR 2, socketID: " << socketId << std::endl;
                     int clientSocket = accept(serverSocket, NULL, NULL);
+                    std::cout << "clienSocket accepted " << clientSocket << std::endl;
                     if (clientSocket < 0) 
                     {
                         perror("Error accepting client connection");
@@ -172,32 +171,18 @@ int main(int argc, char** argv)
                     fcntl(clientSocket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 
                     FD_SET(clientSocket, &activeSockets);
-                    std::cout << "clientSocket1 " << clientSocket << std::endl;
-                    std::cout << "maxSocket1 " << maxSocket << std::endl;
                     maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket; // Update the max socket descriptor
                                                                     // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
                                                                     // and the highest fd value is determined by the maximum fd in the sets 
-                    std::cout << "clientSocket2 " << clientSocket << std::endl;
-                    std::cout << "maxSocket2 " << maxSocket << std::endl;
                     clientSockets.push_back(clientSocket);
                     break; // Break after accepting a connection. Otherwise, I try to accept all the connections in the same loop
                 } 
                 else 
                 {
-                    std::cout << "hihihi " << std::endl;
                     int bytesRead = recv(socketId, buffer, sizeof(buffer) - 1, 0);
 
                     if (bytesRead <= 0) 
                     {
-                        for (int i = 0; i < clientSockets.size(); i++)
-                        {
-                            std::cerr << "server: client " << socketId << " just left" << std::endl;
-                            if (clientSockets[i] != socketId)
-                            {
-                                std::string response = handleHttpRequest(buffer);
-                                send(clientSockets[i], response.c_str(), response.size(), 0);
-                            }
-                        }
                         close(socketId);
                         FD_CLR(socketId, &activeSockets);
                         // Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
@@ -205,20 +190,23 @@ int main(int argc, char** argv)
                     } 
                     else 
                     {
+                        std::cout << std::endl << "BUFFER " << std::endl<< buffer << std::endl;
                         for (int i = 0; i < clientSockets.size(); i++)
                         {
-                            if (clientSockets[i] != socketId) 
-                            {
-                                std::string response = handleHttpRequest(buffer);
-                                send(clientSockets[i], response.c_str(), response.size(), 0);
-                            }
+                            std::cout << "socketId = " << socketId << std::endl;
+                            std::cout << "clientSockets.size() = " << clientSockets.size() << std::endl;
+                            std::cout << "clientSockets[i] = " << clientSockets[i] << std::endl;
+                            std::string response = handleHttpRequest(buffer);
+                            send(clientSockets[i], response.c_str(), response.size(), 0);
+                            clientSockets.erase(std::remove(clientSockets.begin(), clientSockets.end(), socketId), clientSockets.end());
+                            close(socketId);
+                            FD_CLR(socketId, &activeSockets);
                         }
                     }
                 }
             }
-            std::cout << "how many iterations " << socketId << std::endl;
         }
     }
     close(serverSocket);
-    return 0;
+    return (0);
 }
