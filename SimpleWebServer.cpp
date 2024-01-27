@@ -38,6 +38,8 @@ void readConfigFile(const std::string& configFile)
     }
 }
 
+
+
 std::string handleGetRequest(const std::string& path)
 {
     if (path == "/image.html")
@@ -65,6 +67,61 @@ std::string handleGetRequest(const std::string& path)
     return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
 }
 
+
+void executeCgiScript(const std::string& cgiScriptPath, const std::string& requestBody)
+{
+    // Create a pipe for communication between parent and child processes
+    int pipefd[2];
+    if (pipe(pipefd) == -1)
+    {
+        perror("pipe");
+        exit(1);
+    }
+
+    pid_t pid = fork();
+
+    if (pid == -1)
+    {
+        perror("fork");
+        exit(1);
+    }
+
+    if (pid == 0)
+    {
+        // Child process
+
+        // Close the write end of the pipe
+        close(pipefd[1]);
+
+        // Redirect standard input to read from the pipe
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+
+        // Execute the CGI script
+        char* argv[] = {const_cast<char*>(cgiScriptPath.c_str()), NULL};
+        if (execve(cgiScriptPath.c_str(), argv, NULL) == -1)
+        {
+            perror("execve");
+            exit(1);
+        }
+    }
+    else
+    {
+        // Parent process
+
+        // Close the read end of the pipe
+        close(pipefd[0]);
+
+        // Write the request body to the pipe (it will be read by the CGI script)
+        write(pipefd[1], requestBody.c_str(), requestBody.size());
+        close(pipefd[1]);
+
+        // Wait for the child process to finish
+        int status;
+        waitpid(pid, &status, 0);
+    }
+}
+
 std::string handleHttpRequest(char* buffer)
 {
     std::istringstream request(buffer);        // Parse the HTTP request
@@ -75,8 +132,21 @@ std::string handleHttpRequest(char* buffer)
 
     if (method == "GET")
         return handleGetRequest(path);
-    // else if (method == "POST")                // TO DO
-    //     return handlePostRequest(path, requestBody);
+    else if (method == "POST")    // TO DO
+    {
+        while (getline(std::cin, line)) {
+            if (line.empty()) {
+                break;  // End of request body
+            }
+            requestBody += line + "\n";
+        }
+
+        // Execute the CGI script with the request body
+        std::string cgiScriptPath = "/Users/mmakarov/Documents/Cursus_Webserv_github/cgi-bin/cgi.py";
+        executeCgiScript(cgiScriptPath, requestBody);
+        return "";
+    }            
+        // return handlePostRequest(path, requestBody);
     else 
         return "Unsupported HTTP method";
 
