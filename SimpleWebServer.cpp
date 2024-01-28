@@ -93,7 +93,7 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         std::string responseData;
 
         ssize_t bytesRead;
-        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0) //prohibited!
+        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0) //prohibited
             responseData.append(buffer, bytesRead);
 
         // Wait for the child process to finish
@@ -161,7 +161,7 @@ std::string handleHttpRequest(char* buffer)
 
     if (method == "GET")
         return handleGetPostRequest(path);
-    else if (method == "POST")    // TO DO
+    else if (method == "POST") 
     {
         while (std::getline(std::cin, line)) 
         {
@@ -170,8 +170,7 @@ std::string handleHttpRequest(char* buffer)
             requestBody += line + "\n";
         }
 
-        // Execute the CGI script with the request body
-        std::string cgiScriptPath = "/usr/bin/python";  // Update the path accordingly
+        std::string cgiScriptPath = "/usr/bin/python";  // Execute the CGI script with the request body
         return executeCgiScript(cgiScriptPath, requestBody);
     }            
     else 
