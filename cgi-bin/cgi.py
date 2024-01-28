@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-print("Content-type: text/html\n")  # Required header indicating the content type
+#!/usr/bin/python
 
 # HTML content
 print("<html><head><title>Greeting CGI</title></head><body>")
@@ -25,3 +23,4 @@ print("  <input type='submit' value='Submit'>")
 print("</form>")
 
 print("</body></html>")
+
