@@ -6,8 +6,10 @@ print("<h1>Personalized Greeting</h1>")
 
 # Retrieve user input from the form
 import cgi
+
 form = cgi.FieldStorage()
 user_name = form.getvalue("name")
+
 
 # Process the input and generate a response
 if user_name:

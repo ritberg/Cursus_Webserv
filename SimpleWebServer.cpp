@@ -71,10 +71,9 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         putenv(strdup(("REQUEST_METHOD=POST")));
 
         const char* const argv[] = {cgiScriptPath.c_str(), NULL};
-        const char* const envp[] = {NULL};
 
         // Execute the CGI script
-        execve(cgiScriptPath.c_str(), const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+        execve(cgiScriptPath.c_str(), const_cast<char* const*>(argv), NULL);
         perror("execve");
         exit(1);
     }
@@ -163,13 +162,13 @@ std::string handleHttpRequest(char* buffer)
         return handleGetPostRequest(path);
     else if (method == "POST") 
     {
-        while (std::getline(std::cin, line)) 
+        while (std::getline(request, line)) 
         {
             if (line.empty())
                 break;  // End of request body
-            requestBody += line + "\n";
         }
-
+        requestBody += line + "\n";
+        std::cout << "! requestBody: " << requestBody << std::endl;
         std::string cgiScriptPath = "/usr/bin/python";  // Execute the CGI script with the request body
         return executeCgiScript(cgiScriptPath, requestBody);
     }            
