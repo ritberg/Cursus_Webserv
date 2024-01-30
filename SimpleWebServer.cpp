@@ -67,15 +67,19 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         dup2(stdinPipe[0], STDIN_FILENO);
         dup2(stdoutPipe[1], STDOUT_FILENO);
 
-        // Set up environment variables
-        putenv(strdup(("REQUEST_METHOD=POST")));
-
         const char* const argv[] = {cgiScriptPath.c_str(), NULL};
+        const char* const envp[] = {
+            "PATH_INFO=http://localhost:8180/cgi-bin/cgi.py/upload_folder",
+            "REQUEST_METHOD=POST",
+            NULL
+            };
+
 
         // Execute the CGI script
-        execve(cgiScriptPath.c_str(), const_cast<char* const*>(argv), NULL);
-        perror("execve");
-        exit(1);
+        execve(cgiScriptPath.c_str(), const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+        // perror("execve");
+        // exit(1);
+        return"";
     }
     else // Parent process
     {
@@ -92,7 +96,7 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         std::string responseData;
 
         ssize_t bytesRead;
-        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0) //prohibited
+        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0) //prohibited?
             responseData.append(buffer, bytesRead);
 
         // Wait for the child process to finish
@@ -156,7 +160,7 @@ std::string handleHttpRequest(char* buffer)
     std::string method, path, protocol, line;
     request >> method >> path >> protocol;
 
-    std::string requestBody; // will be useful for POST
+    std::string requestBody;
 
     if (method == "GET")
         return handleGetPostRequest(path);
