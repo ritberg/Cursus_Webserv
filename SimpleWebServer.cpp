@@ -12,12 +12,12 @@
 #include <map>
 #include <vector>
 
-#define MAX_BUFFER_SIZE 1024
+#define MAX_BUFFER_SIZE 100000
 #define MAX_CLIENTS 32
 
-std::map<std::string, std::string> serverConfig; //global variable
+std::map<std::string, std::string> serverConfig; // global variable
 
-void readConfigFile(const std::string& configFile)
+void readConfigFile(const std::string &configFile)
 {
     std::ifstream file(configFile);
     if (!file.is_open())
@@ -38,8 +38,7 @@ void readConfigFile(const std::string& configFile)
     }
 }
 
-
-std::string executeCgiScript(const std::string& cgiScriptPath, const std::string& requestBody)
+std::string executeCgiScript(const std::string &cgiScriptPath, const std::string &scriptContent)
 {
     int stdinPipe[2];
     int stdoutPipe[2];
@@ -63,23 +62,19 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         close(stdinPipe[1]);
         close(stdoutPipe[0]);
 
-        // Redirect stdin and stdout
-        dup2(stdinPipe[0], STDIN_FILENO);
+        dup2(stdinPipe[0], STDIN_FILENO);   // Redirect stdin and stdout
         dup2(stdoutPipe[1], STDOUT_FILENO);
 
-        const char* const argv[] = {cgiScriptPath.c_str(), NULL};
-        const char* const envp[] = {
-            "PATH_INFO=http://localhost:8180/cgi-bin/cgi.py/upload_folder",
+        const char *const argv[] = {cgiScriptPath.c_str(), NULL};
+        const char *const envp[] = {
             "REQUEST_METHOD=POST",
-            NULL
-            };
-
+            NULL};
 
         // Execute the CGI script
-        execve(cgiScriptPath.c_str(), const_cast<char* const*>(argv), const_cast<char* const*>(envp));
-        // perror("execve");
-        // exit(1);
-        return"";
+        execve(cgiScriptPath.c_str(), const_cast<char *const *>(argv), const_cast<char *const *>(envp));
+        perror("execve");
+        exit(1);
+        return "";
     }
     else // Parent process
     {
@@ -88,18 +83,16 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
         close(stdoutPipe[1]);
 
         // Write the request body to the child process
-        write(stdinPipe[1], requestBody.c_str(), requestBody.size());
+        write(stdinPipe[1], scriptContent.c_str(), scriptContent.size());
         close(stdinPipe[1]);
 
-        // Read the response from the child process
-        char buffer[BUFSIZ];
+        char buffer[BUFSIZ];           // Read the response from the child process
         std::string responseData;
 
         ssize_t bytesRead;
-        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0) //prohibited?
+        while ((bytesRead = read(stdoutPipe[0], buffer, BUFSIZ)) > 0)
             responseData.append(buffer, bytesRead);
 
-        // Wait for the child process to finish
         int status;
         waitpid(pid, &status, 0);
 
@@ -107,8 +100,7 @@ std::string executeCgiScript(const std::string& cgiScriptPath, const std::string
     }
 }
 
-
-std::string handleGetPostRequest(const std::string& path)
+std::string handleGetRequest(const std::string &path)
 {
     if (path == "/cgi-bin/cgi.py")
     {
@@ -144,7 +136,7 @@ std::string handleGetPostRequest(const std::string& path)
         if (file.is_open())
         {
             std::ostringstream oss;
-            oss << "HTTP/1.1 200 Ok\r\n\r\n"; 
+            oss << "HTTP/1.1 200 Ok\r\n\r\n";
             oss << file.rdbuf();
             return oss.str();
         }
@@ -153,35 +145,48 @@ std::string handleGetPostRequest(const std::string& path)
 }
 
 
-std::string handleHttpRequest(char* buffer)
+std::string handleHttpRequest(std::string& buffer)
 {
-
-    std::istringstream request(buffer);        // Parse the HTTP request
-    std::string method, path, protocol, line;
-    request >> method >> path >> protocol;
+    std::istringstream request(buffer); // Parse the HTTP request
+    std::string method, path, line;    
+    request >> method >> path;
 
     std::string requestBody;
 
     if (method == "GET")
-        return handleGetPostRequest(path);
-    else if (method == "POST") 
+        return handleGetRequest(path);
+    else if (method == "POST")
     {
-        while (std::getline(request, line)) 
-        {
-            if (line.empty())
-                break;  // End of request body
-        }
-        requestBody += line + "\n";
-        std::cout << "! requestBody: " << requestBody << std::endl;
-        std::string cgiScriptPath = "/usr/bin/python";  // Execute the CGI script with the request body
-        return executeCgiScript(cgiScriptPath, requestBody);
+        std::string body;
+        std::string boundary;
+        size_t pos_marker = buffer.find("boundary=");
+        size_t end_marker;
+        size_t i = pos_marker + std::string("boundary=").length() - 1;
+
+        while (++i < buffer.length() && buffer[i] != '\n')
+            boundary.push_back(buffer[i]);
+        pos_marker = buffer.find("Content-Type", i);
+        i = pos_marker - 1;
+        while (++i < buffer.length() && buffer[i] != '\n')
+            i += 2;
+        end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
+        while (++i < buffer.length() && i < end_marker)
+            body.push_back(buffer[i]);
+        // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
+        std::ofstream outfile;
+        outfile.open("test.jpg");
+        if (outfile.fail())
+            return "";
+        outfile << body;
+        outfile.close();
+        return "HTTP/1.1 200 Ok\r\n\r\n" + body;
+        // return executeCgiScript("/usr/bin/python", body);
     }            
     else 
         return "Unsupported HTTP method";
 }
 
-
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     if (argc != 2)
     {
@@ -200,7 +205,7 @@ int main(int argc, char** argv)
 
     // setsockopt allows reusing the same socket and avoiding "Error binding: Address already in use"
     int opt = 1;
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) 
+    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
     {
         perror("Setsockopt failed");
         exit(1);
@@ -212,9 +217,9 @@ int main(int argc, char** argv)
     fcntl(serverSocket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 
     struct sockaddr_in serverAddr = {0};                            // Structure to hold the server address
-    serverAddr.sin_family = AF_INET;                               // set IP addresses to IPv4
+    serverAddr.sin_family = AF_INET;                                // set IP addresses to IPv4
     serverAddr.sin_port = htons(std::stoi(serverConfig["listen"])); // set the port from config.txt
-    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);           //set the addr to localhost
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);            // set the addr to localhost
 
     if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
     {
@@ -231,37 +236,40 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
-  
-    std::vector<int> clientSockets;  //store client socket descriptors
-    
-    fd_set activeSockets, readySockets; // fd_set is a structure type that can represent a set of fds. see select
-    FD_ZERO(&activeSockets);             //removing all fds from the set of fds
-    FD_SET(serverSocket, &activeSockets);  // add the server socket to the set of fds
-    char buffer[MAX_BUFFER_SIZE];         // storing received messages 
-    int maxSocket = serverSocket;
 
+    std::vector<int> clientSockets; // store client socket descriptors
+
+    fd_set activeSockets, readySockets;   // fd_set is a structure type that can represent a set of fds. see select
+    FD_ZERO(&activeSockets);              // removing all fds from the set of fds
+    FD_SET(serverSocket, &activeSockets); // add the server socket to the set of fds
+    // char buffer[MAX_BUFFER_SIZE];         // storing received messages
+    std::vector<char> VectBuff;
+    int maxSocket = serverSocket;
 
     while (1)
     {
-        memset(buffer, '\0', sizeof(buffer));
-        readySockets = activeSockets;   // Copy the active sockets set to use them with select()
+        // memset(buffer, '\0', sizeof(buffer));
+        VectBuff.clear();
+        VectBuff.reserve(100000);
+        VectBuff.resize(100000);
+        readySockets = activeSockets; // Copy the active sockets set to use them with select()
         if (select(maxSocket + 1, &readySockets, NULL, NULL, NULL) <= 0)
         {
             std::cerr << "Error in select(): " << strerror(errno) << std::endl;
             exit(1);
         }
         std::cout << "maxSocket début " << maxSocket << std::endl;
-    
-        for (int socketId = 0; socketId <= maxSocket; socketId++)  // Check each socket for activity
+
+        for (int socketId = 0; socketId <= maxSocket; socketId++) // Check each socket for activity
         {
-            if (FD_ISSET(socketId, &readySockets)) 
+            if (FD_ISSET(socketId, &readySockets))
             {
-                if (socketId == serverSocket) 
+                if (socketId == serverSocket)
                 {
                     std::cout << "ERROR 2, socketID: " << socketId << std::endl;
                     int clientSocket = accept(serverSocket, NULL, NULL);
                     std::cout << "clienSocket accepted " << clientSocket << std::endl;
-                    if (clientSocket < 0) 
+                    if (clientSocket < 0)
                     {
                         perror("Error accepting client connection");
                         exit(1);
@@ -270,25 +278,27 @@ int main(int argc, char** argv)
 
                     FD_SET(clientSocket, &activeSockets);
                     maxSocket = (clientSocket > maxSocket) ? clientSocket : maxSocket; // Update the max socket descriptor
-                                                                    // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
-                                                                    // and the highest fd value is determined by the maximum fd in the sets 
+                                                                                       // it's mandatory to do it because select() uses bitsets to represent the fds to monitor
+                                                                                       // and the highest fd value is determined by the maximum fd in the sets
                     clientSockets.push_back(clientSocket);
                     break; // Break after accepting a connection. Otherwise, I try to accept all the connections in the same loop
-                } 
-                else 
+                }
+                else
                 {
-                    int bytesRead = recv(socketId, buffer, sizeof(buffer) - 1, 0);
+                    int bytesRead = recv(socketId, &VectBuff[0], VectBuff.size() - 1, 0);
 
-                    if (bytesRead <= 0) 
+                    if (bytesRead <= 0)
                     {
                         close(socketId);
                         FD_CLR(socketId, &activeSockets);
                         // Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
                         clientSockets.erase(std::remove(clientSockets.begin(), clientSockets.end(), socketId), clientSockets.end());
-                    } 
-                    else 
+                    }
+                    else
                     {
-                        std::cout << std::endl << "BUFFER " << std::endl<< buffer << std::endl;
+                        std::string buffer(VectBuff.begin(), VectBuff.end());
+                        std::cout << std::endl << "BUFFER " << std::endl << buffer << std::endl;
+
                         for (int i = 0; i < clientSockets.size(); i++)
                         {
                             std::cout << "socketId = " << socketId << std::endl;
