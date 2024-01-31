@@ -38,6 +38,7 @@ void readConfigFile(const std::string &configFile)
     }
 }
 
+/* //   NO NEED AT THE MOMENT 
 std::string executeCgiScript(const std::string &cgiScriptPath, const std::string &scriptContent)
 {
     int stdinPipe[2];
@@ -58,8 +59,7 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
 
     if (pid == 0) // Child process
     {
-        // Close unused ends of the pipes
-        close(stdinPipe[1]);
+        close(stdinPipe[1]);  // Close unused ends of the pipes
         close(stdoutPipe[0]);
 
         dup2(stdinPipe[0], STDIN_FILENO);   // Redirect stdin and stdout
@@ -67,10 +67,10 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
 
         const char *const argv[] = {cgiScriptPath.c_str(), NULL};
         const char *const envp[] = {
-            "REQUEST_METHOD=POST",
+            "REQUEST_METHOD=POST",  //Add PATH_INFO later
             NULL};
 
-        // Execute the CGI script
+        // execute the CGI script
         execve(cgiScriptPath.c_str(), const_cast<char *const *>(argv), const_cast<char *const *>(envp));
         perror("execve");
         exit(1);
@@ -78,15 +78,14 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
     }
     else // Parent process
     {
-        // Close unused ends of the pipes
-        close(stdinPipe[0]);
+        close(stdinPipe[0]);  // Close unused ends of the pipes
         close(stdoutPipe[1]);
 
         // Write the request body to the child process
         write(stdinPipe[1], scriptContent.c_str(), scriptContent.size());
         close(stdinPipe[1]);
 
-        char buffer[BUFSIZ];           // Read the response from the child process
+        char buffer[BUFSIZ];      // Read the response from the child process
         std::string responseData;
 
         ssize_t bytesRead;
@@ -99,24 +98,28 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
         return responseData;
     }
 }
+*/
 
 std::string handleGetRequest(const std::string &path)
 {
-    if (path == "/cgi-bin/cgi.py")
+    if (path == "/upload.html")
     {
-        std::ifstream file("cgi-bin/cgi.py");
+        std::ifstream file("upload.html");
         if (file.is_open())
         {
             std::ostringstream oss;
             oss << "HTTP/1.1 200 OK\r\n\r\n";
-            std::string scriptContent;
-            while (!file.eof())
-            {
-                char ch;
-                file.get(ch);
-                scriptContent += ch;
-            }
-            return oss.str() + executeCgiScript("/usr/bin/python", scriptContent);
+            // std::string scriptContent;         // NO NEED
+            // while (!file.eof())
+            // {
+            //     char ch;
+            //     file.get(ch);
+            //     scriptContent += ch;
+            // }
+            // // Use CGI script for GET request, just to display the web page
+            // return oss.str() + executeCgiScript("/usr/bin/python", scriptContent);
+            oss << file.rdbuf();
+            return oss.str();
         }
     }
     else if (path == "/image.html")
@@ -125,7 +128,7 @@ std::string handleGetRequest(const std::string &path)
         if (file.is_open())
         {
             std::ostringstream oss;
-            oss << "HTTP/1.1 200 Ok\r\n\r\n"; // we need to add a header to each html file
+            oss << "HTTP/1.1 200 Ok\r\n\r\n"; // We need to add a header to each html file
             oss << file.rdbuf();
             return oss.str();
         }
@@ -157,7 +160,7 @@ std::string handleHttpRequest(std::string& buffer)
         return handleGetRequest(path);
     else if (method == "POST")
     {
-        std::string body;
+        std::string body;    // Parsing by Diogo
         std::string boundary;
         size_t pos_marker = buffer.find("boundary=");
         size_t end_marker;
@@ -174,13 +177,12 @@ std::string handleHttpRequest(std::string& buffer)
             body.push_back(buffer[i]);
         // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
         std::ofstream outfile;
-        outfile.open("test.jpg");
+        outfile.open("test.jpg"); // The image uploaded by a client
         if (outfile.fail())
-            return "";
+            return "Unsupported HTTP method";
         outfile << body;
         outfile.close();
-        return "HTTP/1.1 200 Ok\r\n\r\n" + body;
-        // return executeCgiScript("/usr/bin/python", body);
+        return "HTTP/1.1 200 Ok\r\n\r\n" + body; // Display the uploaded image
     }            
     else 
         return "Unsupported HTTP method";
@@ -203,7 +205,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    // setsockopt allows reusing the same socket and avoiding "Error binding: Address already in use"
+    // Setsockopt allows reusing the same socket and avoiding "Error binding: Address already in use"
     int opt = 1;
     if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
     {
@@ -237,7 +239,7 @@ int main(int argc, char **argv)
 
     std::cout << "Server listening on port " << serverConfig["listen"] << "..." << std::endl;
 
-    std::vector<int> clientSockets; // store client socket descriptors
+    std::vector<int> clientSockets; // Store client socket descriptors
 
     fd_set activeSockets, readySockets;   // fd_set is a structure type that can represent a set of fds. see select
     FD_ZERO(&activeSockets);              // removing all fds from the set of fds
@@ -249,7 +251,7 @@ int main(int argc, char **argv)
     while (1)
     {
         // memset(buffer, '\0', sizeof(buffer));
-        VectBuff.clear();
+        VectBuff.clear();           // Use a vectorized buffer to read all the characters, including \0
         VectBuff.reserve(100000);
         VectBuff.resize(100000);
         readySockets = activeSockets; // Copy the active sockets set to use them with select()
@@ -296,7 +298,7 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        std::string buffer(VectBuff.begin(), VectBuff.end());
+                        std::string buffer(VectBuff.begin(), VectBuff.end());    // Converting vectorized buffer to a std::string
                         std::cout << std::endl << "BUFFER " << std::endl << buffer << std::endl;
 
                         for (int i = 0; i < clientSockets.size(); i++)
