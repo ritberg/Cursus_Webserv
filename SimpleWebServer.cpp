@@ -38,7 +38,7 @@ void readConfigFile(const std::string &configFile)
     }
 }
 
-/* //   NO NEED AT THE MOMENT 
+ //   NO NEED AT THE MOMENT 
 std::string executeCgiScript(const std::string &cgiScriptPath, const std::string &scriptContent)
 {
     int stdinPipe[2];
@@ -98,7 +98,7 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
         return responseData;
     }
 }
-*/
+
 
 std::string handleGetRequest(const std::string &path)
 {
@@ -109,17 +109,26 @@ std::string handleGetRequest(const std::string &path)
         {
             std::ostringstream oss;
             oss << "HTTP/1.1 200 OK\r\n\r\n";
-            // std::string scriptContent;         // NO NEED
-            // while (!file.eof())
-            // {
-            //     char ch;
-            //     file.get(ch);
-            //     scriptContent += ch;
-            // }
-            // // Use CGI script for GET request, just to display the web page
-            // return oss.str() + executeCgiScript("/usr/bin/python", scriptContent);
             oss << file.rdbuf();
             return oss.str();
+        }
+    }
+    else if (path == "/cgi-bin/cgi.py")
+    {
+        std::ifstream file("cgi-bin/cgi.py");
+        if (file.is_open())
+        {
+            std::ostringstream oss;
+            oss << "HTTP/1.1 200 OK\r\n\r\n";
+            std::string scriptContent;  
+            while (!file.eof())
+            {
+                char ch;
+                file.get(ch);
+                scriptContent += ch;
+            }
+            // Use CGI script for GET request, just to display the web page
+            return oss.str() + executeCgiScript("/usr/bin/python", scriptContent);
         }
     }
     else if (path == "/image.html")
@@ -158,7 +167,7 @@ std::string handleHttpRequest(std::string& buffer)
 
     if (method == "GET")
         return handleGetRequest(path);
-    else if (method == "POST")
+    else if (method == "POST" && path == "/upload.html")
     {
         std::string body;    // Parsing by Diogo
         std::string boundary;
@@ -183,7 +192,19 @@ std::string handleHttpRequest(std::string& buffer)
         outfile << body;
         outfile.close();
         return "HTTP/1.1 200 Ok\r\n\r\n" + body; // Display the uploaded image
-    }            
+    }
+    else if (method == "POST" && path == "/cgi-bin/cgi.py")
+    {
+        while (std::getline(request, line)) 
+        {
+            if (line.empty())
+                break;  // End of request body
+        }
+        requestBody += line + "\n";
+        std::cout << "! requestBody: " << requestBody << std::endl;
+        std::string cgiScriptPath = "/usr/bin/python";  // Execute the CGI script with the request body
+        return executeCgiScript(cgiScriptPath, requestBody);
+    }
     else 
         return "Unsupported HTTP method";
 }
