@@ -174,7 +174,7 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
         body.push_back(buffer[i]);
     // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
     std::ofstream outfile;
-    outfile.open("upload_folder/test.jpg"); // The image uploaded by a client
+    outfile.open("uploaded_files/test.jpg"); // The image uploaded by a client
     if (outfile.fail())
         return "Unsupported HTTP method";
     if (path == "/upload.html")
@@ -202,9 +202,24 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
         std::string res = executeCgiScript("/usr/bin/php", body);
         outfile << res;
         outfile.close();
-        return "HTTP/1.1 200 Ok\r\n\r\n" + res; // display success msg TO DO
+        return "HTTP/1.1 200 Ok\r\n\r\n"; // display success msg TO DO
     }
     return "Unsupported HTTP method";
+}
+
+std::string handleDeleteRequest(const std::string& path)
+{
+    if (path == "/cgi-bin/cgi.php")
+    {
+        if (remove("uploaded_files/test.jpg") == 0)
+            return "HTTP/1.1 200 Ok\r\n\r\nResource deleted successfully";
+    }
+    else if (path == "/upload.html")
+    {
+        if (remove("uploaded_files/test.jpg") == 0)
+            return "HTTP/1.1 200 Ok\r\n\r\nResource deleted successfully";
+    }
+    return "HTTP/1.1 404 Not Found\r\n\r\nResource not found";
 }
 
 std::string handleHttpRequest(std::string &buffer)
@@ -213,15 +228,12 @@ std::string handleHttpRequest(std::string &buffer)
     std::string method, path, line;
     request >> method >> path;
 
-    std::string requestBody;
-
     if (method == "GET")
         return handleGetRequest(path);
     else if (method == "POST")
         return handlePostRequest(path, buffer);
     else if (method == "DELETE")
-    {
-    }
+        return handleDeleteRequest(path);
     return "Unsupported HTTP method";
 }
 

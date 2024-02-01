@@ -22,11 +22,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "  <input type='submit' value='Download'>";
     echo "</form>";
 
-    echo "<form action='' method='post'>";
+    echo "<form action='' method='post' id='deleteForm'>";
     echo "  <input type='hidden' name='action' value='delete'>";
-    echo "  <input type='submit' value='Delete'>";
+    echo "  <input type='button' value='Delete' onclick='sendDeleteRequest()'>";
     echo "</form>";
 }
 
 echo "</body></html>";
 ?>
+
+<script>
+    function sendDeleteRequest() {
+        // Use JavaScript to send a DELETE request when the "Delete" button is clicked
+        fetch('/cgi-bin/cgi.php', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                // Add any other headers as needed
+            },
+            body: JSON.stringify({
+                // Add any data you want to send with the DELETE request
+            }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            // Handle success, if needed
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
