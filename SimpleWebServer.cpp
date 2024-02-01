@@ -67,6 +67,7 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
         const char *const argv[] = {cgiScriptPath.c_str(), NULL};
         const char *const envp[] = {
             "REQUEST_METHOD=POST", // Add PATH_INFO later
+            "CONTENT_TYPE=application/x-www-form-urlencoded",
             NULL};
 
         // execute the CGI script
@@ -202,19 +203,15 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
         std::string res = executeCgiScript("/usr/bin/php", body);
         outfile << res;
         outfile.close();
-        return "HTTP/1.1 200 Ok\r\n\r\n"; // display success msg TO DO
+
+       return handleGetRequest(path);
     }
     return "Unsupported HTTP method";
 }
 
 std::string handleDeleteRequest(const std::string& path)
 {
-    if (path == "/cgi-bin/cgi.php")
-    {
-        if (remove("uploaded_files/test.jpg") == 0)
-            return "HTTP/1.1 200 Ok\r\n\r\nResource deleted successfully";
-    }
-    else if (path == "/upload.html")
+    if (path == "/cgi-bin/cgi.php" || path == "/upload.html")
     {
         if (remove("uploaded_files/test.jpg") == 0)
             return "HTTP/1.1 200 Ok\r\n\r\nResource deleted successfully";

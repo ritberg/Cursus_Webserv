@@ -16,17 +16,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "  <input type='submit' value='Upload'>";
     echo "</form>";
 
-    // Display additional buttons for download and delete
-    echo "<form action='' method='post'>";
-    echo "  <input type='hidden' name='action' value='download'>";
-    echo "  <input type='submit' value='Download'>";
-    echo "</form>";
+    if (isset($_FILES['photo'])) {             // Success msg TO DO
+        echo "<p>Successfully uploaded!</p>";
+    }
 
+    // Display additional button for delete
     echo "<form action='' method='post' id='deleteForm'>";
     echo "  <input type='hidden' name='action' value='delete'>";
     echo "  <input type='button' value='Delete' onclick='sendDeleteRequest()'>";
     echo "</form>";
+
 }
+
 
 echo "</body></html>";
 ?>
