@@ -11,9 +11,20 @@
         <input type='text' name='name'>
         <br>
         <label for='photo'>Choose a photo:</label>
-        <input type='file' name='photo' accept='image/*' required>
+        <input type='file' name='photo'>
         <br>
         <input type='submit' value='Upload'>
+    </form>
+
+    <!-- Additional buttons for Download and Delete -->
+    <form action='' method='post'>
+        <input type='hidden' name='action' value='download'>
+        <input type='submit' value='Download'>
+    </form>
+
+    <form action='' method='post'>
+        <input type='hidden' name='action' value='delete'>
+        <input type='submit' value='Delete'>
     </form>
 </body>
 </html>

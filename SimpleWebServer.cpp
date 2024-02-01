@@ -58,15 +58,15 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
 
     if (pid == 0) // Child process
     {
-        close(stdinPipe[1]);  // Close unused ends of the pipes
+        close(stdinPipe[1]); // Close unused ends of the pipes
         close(stdoutPipe[0]);
 
-        dup2(stdinPipe[0], STDIN_FILENO);   // Redirect stdin and stdout
+        dup2(stdinPipe[0], STDIN_FILENO); // Redirect stdin and stdout
         dup2(stdoutPipe[1], STDOUT_FILENO);
 
         const char *const argv[] = {cgiScriptPath.c_str(), NULL};
         const char *const envp[] = {
-            "REQUEST_METHOD=POST",  //Add PATH_INFO later
+            "REQUEST_METHOD=POST", // Add PATH_INFO later
             NULL};
 
         // execute the CGI script
@@ -77,14 +77,14 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
     }
     else // Parent process
     {
-        close(stdinPipe[0]);  // Close unused ends of the pipes
+        close(stdinPipe[0]); // Close unused ends of the pipes
         close(stdoutPipe[1]);
 
         // Write the request body to the child process
         write(stdinPipe[1], scriptContent.c_str(), scriptContent.size());
         close(stdinPipe[1]);
 
-        char buffer[100000];      // Read the response from the child process
+        char buffer[100000]; // Read the response from the child process
         std::string responseData;
 
         ssize_t bytesRead;
@@ -98,7 +98,6 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
         return responseData;
     }
 }
-
 
 std::string handleGetRequest(const std::string &path)
 {
@@ -120,7 +119,7 @@ std::string handleGetRequest(const std::string &path)
         {
             std::ostringstream oss;
             oss << "HTTP/1.1 200 OK\r\n\r\n";
-            std::string scriptContent;  
+            std::string scriptContent;
             while (!file.eof())
             {
                 char ch;
@@ -156,11 +155,62 @@ std::string handleGetRequest(const std::string &path)
     return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
 }
 
+std::string handlePostRequest(const std::string &path, const std::string &buffer)
+{
+    std::string body; // Parsing by Diogo
+    std::string boundary;
+    size_t pos_marker = buffer.find("boundary=");
+    size_t end_marker;
+    size_t i = pos_marker + std::string("boundary=").length() - 1;
 
-std::string handleHttpRequest(std::string& buffer)
+    while (++i < buffer.length() && buffer[i] != '\n')
+        boundary.push_back(buffer[i]);
+    pos_marker = buffer.find("Content-Type", i);
+    i = pos_marker - 1;
+    while (++i < buffer.length() && buffer[i] != '\n')
+        i += 2;
+    end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
+    while (++i < buffer.length() && i < end_marker)
+        body.push_back(buffer[i]);
+    // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
+    std::ofstream outfile;
+    outfile.open("upload_folder/test.jpg"); // The image uploaded by a client
+    if (outfile.fail())
+        return "Unsupported HTTP method";
+    if (path == "/upload.html")
+    {
+        std::ifstream htmlFile("upload.html"); // Read the content of the original HTML page
+        std::string originalHtml;
+
+        if (htmlFile.is_open()) // Check if the file is open before reading
+        {
+            char c;
+            while (htmlFile.get(c))
+                originalHtml += c;
+            htmlFile.close();
+        }
+
+        std::string updatedHtml = originalHtml + "\nSuccessfully uploaded!"; // Add a success msg to the intial html page
+
+        outfile << body; // Put the body of the uploaded file into the folder
+        outfile.close();
+
+        return "HTTP/1.1 200 Ok\r\n\r\n" + updatedHtml; // Return the HTTP response with the updated HTML content
+    }
+    if (path == "/cgi-bin/cgi.php")
+    {
+        std::string res = executeCgiScript("/usr/bin/php", body);
+        outfile << res;
+        outfile.close();
+        return "HTTP/1.1 200 Ok\r\n\r\n" + res; // display success msg TO DO
+    }
+    return "Unsupported HTTP method";
+}
+
+std::string handleHttpRequest(std::string &buffer)
 {
     std::istringstream request(buffer); // Parse the HTTP request
-    std::string method, path, line;    
+    std::string method, path, line;
     request >> method >> path;
 
     std::string requestBody;
@@ -168,40 +218,9 @@ std::string handleHttpRequest(std::string& buffer)
     if (method == "GET")
         return handleGetRequest(path);
     else if (method == "POST")
+        return handlePostRequest(path, buffer);
+    else if (method == "DELETE")
     {
-        std::string body;    // Parsing by Diogo
-        std::string boundary;
-        size_t pos_marker = buffer.find("boundary=");
-        size_t end_marker;
-        size_t i = pos_marker + std::string("boundary=").length() - 1;
-
-        while (++i < buffer.length() && buffer[i] != '\n')
-            boundary.push_back(buffer[i]);
-        pos_marker = buffer.find("Content-Type", i);
-        i = pos_marker - 1;
-        while (++i < buffer.length() && buffer[i] != '\n')
-            i += 2;
-        end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
-        while (++i < buffer.length() && i < end_marker)
-            body.push_back(buffer[i]);
-        // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
-        std::ofstream outfile;
-        outfile.open("test.jpg"); // The image uploaded by a client
-        if (outfile.fail())
-            return "Unsupported HTTP method";
-        if (path == "/upload.html")
-        {
-            outfile << body;
-            outfile.close();
-            return "HTTP/1.1 200 Ok\r\n\r\n" + body; // Display the uploaded image
-        }
-        if (path == "/cgi-bin/cgi.php")
-        {
-            std::string res = executeCgiScript("/usr/bin/php", body);
-            outfile << res;
-            outfile.close();
-            return "HTTP/1.1 200 Ok\r\n\r\n" + res;
-        }
     }
     return "Unsupported HTTP method";
 }
@@ -269,7 +288,7 @@ int main(int argc, char **argv)
     while (1)
     {
         // memset(buffer, '\0', sizeof(buffer));
-        VectBuff.clear();           // Use a vectorized buffer to read all the characters, including \0
+        VectBuff.clear(); // Use a vectorized buffer to read all the characters, including \0
         VectBuff.reserve(100000);
         VectBuff.resize(100000);
         readySockets = activeSockets; // Copy the active sockets set to use them with select()
@@ -316,8 +335,10 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        std::string buffer(VectBuff.begin(), VectBuff.end());    // Converting vectorized buffer to a std::string
-                        std::cout << std::endl << "BUFFER " << std::endl << buffer << std::endl;
+                        std::string buffer(VectBuff.begin(), VectBuff.end()); // Converting vectorized buffer to a std::string
+                        std::cout << std::endl
+                                  << "BUFFER " << std::endl
+                                  << buffer << std::endl;
 
                         for (int i = 0; i < clientSockets.size(); i++)
                         {
