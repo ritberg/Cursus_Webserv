@@ -38,7 +38,6 @@ void readConfigFile(const std::string &configFile)
     }
 }
 
- //   NO NEED AT THE MOMENT 
 std::string executeCgiScript(const std::string &cgiScriptPath, const std::string &scriptContent)
 {
     int stdinPipe[2];
@@ -85,7 +84,7 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
         write(stdinPipe[1], scriptContent.c_str(), scriptContent.size());
         close(stdinPipe[1]);
 
-        char buffer[BUFSIZ];      // Read the response from the child process
+        char buffer[100000];      // Read the response from the child process
         std::string responseData;
 
         ssize_t bytesRead;
@@ -94,6 +93,7 @@ std::string executeCgiScript(const std::string &cgiScriptPath, const std::string
 
         int status;
         waitpid(pid, &status, 0);
+        std::cout << "responseData " << responseData << std::endl;
 
         return responseData;
     }
@@ -113,9 +113,9 @@ std::string handleGetRequest(const std::string &path)
             return oss.str();
         }
     }
-    else if (path == "/cgi-bin/cgi.py")
+    else if (path == "/cgi-bin/cgi.php")
     {
-        std::ifstream file("cgi-bin/cgi.py");
+        std::ifstream file("cgi-bin/cgi.php");
         if (file.is_open())
         {
             std::ostringstream oss;
@@ -128,7 +128,7 @@ std::string handleGetRequest(const std::string &path)
                 scriptContent += ch;
             }
             // Use CGI script for GET request, just to display the web page
-            return oss.str() + executeCgiScript("/usr/bin/python", scriptContent);
+            return oss.str() + executeCgiScript("/usr/bin/php", scriptContent);
         }
     }
     else if (path == "/image.html")
@@ -167,7 +167,7 @@ std::string handleHttpRequest(std::string& buffer)
 
     if (method == "GET")
         return handleGetRequest(path);
-    else if (method == "POST" && path == "/upload.html")
+    else if (method == "POST")
     {
         std::string body;    // Parsing by Diogo
         std::string boundary;
@@ -189,24 +189,21 @@ std::string handleHttpRequest(std::string& buffer)
         outfile.open("test.jpg"); // The image uploaded by a client
         if (outfile.fail())
             return "Unsupported HTTP method";
-        outfile << body;
-        outfile.close();
-        return "HTTP/1.1 200 Ok\r\n\r\n" + body; // Display the uploaded image
-    }
-    else if (method == "POST" && path == "/cgi-bin/cgi.py")
-    {
-        while (std::getline(request, line)) 
+        if (path == "/upload.html")
         {
-            if (line.empty())
-                break;  // End of request body
+            outfile << body;
+            outfile.close();
+            return "HTTP/1.1 200 Ok\r\n\r\n" + body; // Display the uploaded image
         }
-        requestBody += line + "\n";
-        std::cout << "! requestBody: " << requestBody << std::endl;
-        std::string cgiScriptPath = "/usr/bin/python";  // Execute the CGI script with the request body
-        return executeCgiScript(cgiScriptPath, requestBody);
+        if (path == "/cgi-bin/cgi.php")
+        {
+            std::string res = executeCgiScript("/usr/bin/php", body);
+            outfile << res;
+            outfile.close();
+            return "HTTP/1.1 200 Ok\r\n\r\n" + res;
+        }
     }
-    else 
-        return "Unsupported HTTP method";
+    return "Unsupported HTTP method";
 }
 
 int main(int argc, char **argv)
