@@ -171,9 +171,9 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
     while (++i < buffer.length() && buffer[i] != '\n')
         i += 2;
     end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
-    while (++i < buffer.length() && i < end_marker)
+    while (++i < buffer.length() && i < end_marker - 2)
         body.push_back(buffer[i]);
-    // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
+    std::cout << std::endl << "Binary Data:\n" << body << std::endl;
     std::ofstream outfile("uploaded_files/test.jpg", std::ios::binary);
     if (outfile.fail())
         return "Unsupported HTTP method";

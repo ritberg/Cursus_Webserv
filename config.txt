@@ -6,11 +6,11 @@ server {
   client_max_body_size 1024;
   web_root /Users/mmakarov/Documents/Cursus_Webserv_github
   index index.html;
-}
 
-	location /cgi-bin/ {
+  location /cgi-bin/ {
 		allow POST;
 		default_file cgi.py;
 		cgi_route //usr/bin/python;
 		max_route_body_size 70;
 	}
+}
