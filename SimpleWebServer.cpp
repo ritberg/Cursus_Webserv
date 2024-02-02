@@ -158,7 +158,7 @@ std::string handleGetRequest(const std::string &path)
 
 std::string handlePostRequest(const std::string &path, const std::string &buffer)
 {
-    std::string body; // Parsing by Diogo
+    std::string body;
     std::string boundary;
     size_t pos_marker = buffer.find("boundary=");
     size_t end_marker;
@@ -174,49 +174,35 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
     while (++i < buffer.length() && i < end_marker)
         body.push_back(buffer[i]);
     // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
-    std::ofstream outfile;
-    outfile.open("uploaded_files/test.jpg"); // The image uploaded by a client
+    std::ofstream outfile("uploaded_files/test.jpg", std::ios::binary);
     if (outfile.fail())
         return "Unsupported HTTP method";
     if (path == "/upload.html")
     {
-        std::ifstream htmlFile("upload.html"); // Read the content of the original HTML page
-        std::string originalHtml;
-
-        if (htmlFile.is_open()) // Check if the file is open before reading
-        {
-            char c;
-            while (htmlFile.get(c))
-                originalHtml += c;
-            htmlFile.close();
-        }
-
-        std::string updatedHtml = originalHtml + "\nSuccessfully uploaded!"; // Add a success msg to the intial html page
-
         outfile << body; // Put the body of the uploaded file into the folder
         outfile.close();
 
-        return "HTTP/1.1 200 Ok\r\n\r\n" + updatedHtml; // Return the HTTP response with the updated HTML content
+        return handleGetRequest(path) + "\nSuccessfully uploaded!";
     }
     if (path == "/cgi-bin/cgi.php")
     {
         std::string res = executeCgiScript("/usr/bin/php", body);
         outfile << res;
         outfile.close();
-
-       return handleGetRequest(path);
+ 
+        return handleGetRequest(path) + "<label for=\"name\">Successfully uploaded!</label><br>";
     }
-    return "Unsupported HTTP method";
+    return "Unsupported HTTP method\n";
 }
 
 std::string handleDeleteRequest(const std::string& path)
 {
-    if (path == "/cgi-bin/cgi.php" || path == "/upload.html")
+    if (path == "/upload.html" || path == "/cgi-bin/cgi.php")
     {
         if (remove("uploaded_files/test.jpg") == 0)
-            return "HTTP/1.1 200 Ok\r\n\r\nResource deleted successfully";
+            return "HTTP/1.1 200 Ok\r\n\r\n\nResource deleted successfully!";
     }
-    return "HTTP/1.1 404 Not Found\r\n\r\nResource not found";
+    return "HTTP/1.1 404 Not Found\r\n\r\n\nResource not found";
 }
 
 std::string handleHttpRequest(std::string &buffer)

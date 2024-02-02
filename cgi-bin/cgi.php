@@ -16,10 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "  <input type='submit' value='Upload'>";
     echo "</form>";
 
-    if (isset($_FILES['photo'])) {             // Success msg TO DO
-        echo "<p>Successfully uploaded!</p>";
-    }
-
     // Display additional button for delete
     echo "<form action='' method='post' id='deleteForm'>";
     echo "  <input type='hidden' name='action' value='delete'>";
@@ -27,7 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "</form>";
 
 }
-
 
 echo "</body></html>";
 ?>
@@ -49,7 +44,11 @@ echo "</body></html>";
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
-            // Handle success, if needed
+            // Parse the response text as HTML and append it to the body
+            return response.text();
+        })
+        .then(responseText => {
+            document.body.insertAdjacentHTML('beforeend', responseText);
         })
         .catch(error => console.error('Error:', error));
     }
