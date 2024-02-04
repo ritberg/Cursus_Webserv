@@ -16,6 +16,7 @@
 #define MAX_CLIENTS 32
 
 std::map<std::string, std::string> serverConfig; // global variable
+std::vector<std::string> uploadedFiles; //too
 
 void readConfigFile(const std::string &configFile)
 {
@@ -156,6 +157,7 @@ std::string handleGetRequest(const std::string &path)
     return "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found";
 }
 
+/*
 std::string handlePostRequest(const std::string &path, const std::string &buffer)
 {
     std::string body;
@@ -173,7 +175,7 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
     end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
     while (++i < buffer.length() && i < end_marker - 2)
         body.push_back(buffer[i]);
-    std::cout << std::endl << "Binary Data:\n" << body << std::endl;
+    // std::cout << std::endl << "Binary Data:\n" << body << std::endl;
     std::ofstream outfile("uploaded_files/test.jpg", std::ios::binary);
     if (outfile.fail())
         return "Unsupported HTTP method";
@@ -194,12 +196,73 @@ std::string handlePostRequest(const std::string &path, const std::string &buffer
     }
     return "Unsupported HTTP method\n";
 }
+*/
+
+std::string extractFilename(const std::string& header) {
+    std::string filename;
+    size_t filenamePos = header.find("filename=");
+    if (filenamePos != std::string::npos)
+    {
+        filename = header.substr(filenamePos + 10); // filename =""
+        filename = filename.substr(0, filename.find("\""));
+    }
+    return filename;
+}
+
+std::string handlePostRequest(const std::string& path, const std::string& buffer) {
+    std::string body;
+    std::string boundary;
+    size_t pos_marker = buffer.find("boundary=");
+    size_t end_marker;
+    size_t i = pos_marker + std::string("boundary=").length() - 1;
+
+    while (++i < buffer.length() && buffer[i] != '\n')
+        boundary.push_back(buffer[i]);
+    pos_marker = buffer.find("Content-Type", i);
+    i = pos_marker - 1;
+    while (++i < buffer.length() && buffer[i] != '\n')
+        i += 2;
+    end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
+    while (++i < buffer.length() && i < end_marker - 2)
+        body.push_back(buffer[i]);
+
+    size_t contentDispositPos = buffer.find("Content-Disposition");
+    std::string contentDispositHeader = buffer.substr(contentDispositPos, end_marker - contentDispositPos);
+    std::string filename = extractFilename(contentDispositHeader);
+
+    std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
+    if (outfile.fail())
+        return "Unsupported HTTP method";
+
+    uploadedFiles.push_back(filename);
+
+     if (path == "/upload.html")
+    {
+        outfile << body; // Put the body of the uploaded file into the folder
+        outfile.close();
+
+        return handleGetRequest(path) + "\nSuccessfully uploaded!";
+    }
+    if (path == "/cgi-bin/cgi.php")
+    {
+        std::string res = executeCgiScript("/usr/bin/php", body);
+        outfile << res;
+        outfile.close();
+ 
+        return handleGetRequest(path) + "<label for=\"name\">Successfully uploaded!</label><br>";
+    }
+    return "Unsupported HTTP method\n";
+}
+
 
 std::string handleDeleteRequest(const std::string& path)
 {
-    if (path == "/upload.html" || path == "/cgi-bin/cgi.php")
+    if ((path == "/upload.html" || path == "/cgi-bin/cgi.php") && !uploadedFiles.empty())
     {
-        if (remove("uploaded_files/test.jpg") == 0)
+        std::string lastFilename = uploadedFiles.back();
+        uploadedFiles.pop_back();
+
+        if (remove(("uploaded_files/" + lastFilename).c_str()) == 0)
             return "HTTP/1.1 200 Ok\r\n\r\n\nResource deleted successfully!";
     }
     return "HTTP/1.1 404 Not Found\r\n\r\n\nResource not found";
