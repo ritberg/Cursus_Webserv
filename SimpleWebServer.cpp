@@ -232,7 +232,7 @@ std::string handlePostRequest(const std::string& path, const std::string& buffer
 
     std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
     if (outfile.fail())
-        return "Unsupported HTTP method";
+        return "No file was chosen";
 
     uploadedFiles.push_back(filename);
 
