@@ -1,0 +1,28 @@
+server {
+	listen 8180
+	host 127.0.0.1
+	server_name SimpleWebServer
+	error_page /tools/404.html
+	client_max_body_size 1024
+	web_root /Users/mmakarov/Documents/webservIntra
+	index index.html
+
+	location /tools/ {
+		dir_route /Users/mmakarov/Documents/webservIntra/tools/
+		autoindex on
+		max_route_body_size 1000000
+		allow POST
+    	allow GET
+    	allow DELETE
+	}
+
+	location /tools/cgi-bin/ {
+		default_file cgi.php
+		dir_route /Users/mmakarov/Documents/webservIntra/cgi-bin/
+		max_route_body_size 1000000
+		allow POST
+    	allow GET
+    	allow DELETE
+	}
+
+}
