@@ -21,7 +21,8 @@
 class ServerSocket
 {
 	private:
-		int server_fd;
+		// int server_fd;
+		std::vector<int> server_fds;
     	int max_socket;
 		struct sockaddr_in server_addr;
 		std::vector<int> client_sockets;
@@ -36,7 +37,7 @@ class ServerSocket
 		ServerSocket &operator=(const ServerSocket &copy);
 		~ServerSocket();
 
-		void Init(const std::string &configFile);
+		void Init(const std::vector<int>& ports); //
 		void Loop();
 		void readConfigFile(const std::string &configFile);
 		std::string getFileInfo(const std::string path, int type);
