@@ -2,61 +2,7 @@
 
 ServerSocket::ServerSocket() : max_socket(0)
 {
-    FD_ZERO(&active_sockets);
-
-    std::vector<int> ports;
-	ports.push_back(8180);
-	ports.push_back(8181);
-
-    for (size_t i = 0; i < ports.size(); ++i)
-    {
-        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_fd < 0)
-        {
-            perror("In socket");
-            exit(EXIT_FAILURE);
-        }
-
-        int opt = 1;
-        if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
-        {
-            perror("In setsockopt");
-            exit(EXIT_FAILURE);
-        }
-
-        fcntl(server_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        server_addr.sin_port = htons(ports[i]);
-
-        if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-        {
-            perror("In bind");
-            close(server_fd);
-            exit(EXIT_FAILURE);
-        }
-
-        if (listen(server_fd, MAX_CLIENTS) < 0)
-        {
-            perror("In listen");
-            close(server_fd);
-            exit(EXIT_FAILURE);
-        }
-
-        FD_SET(server_fd, &active_sockets);
-        server_fds.push_back(server_fd);
-        max_socket = std::max(max_socket, server_fd);
-    }
-
-    std::cout << "----Awaiting connections on port(s): ";
-    for (size_t i = 0; i < ports.size(); ++i)
-        std::cout << ports[i] << " ";
-    std::cout << "----" << std::endl
-              << std::endl;
 }
-
 
 ServerSocket::ServerSocket(const ServerSocket &copy)
 {
@@ -65,7 +11,8 @@ ServerSocket::ServerSocket(const ServerSocket &copy)
 
 ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 {
-	// server_fd = copy.server_fd;
+	for (int i = 0; i < server_fds.size(); i++)
+		server_fds[i] = copy.server_fds[i];
 	max_socket = copy.max_socket;
 	server_addr = copy.server_addr;
 	client_sockets = copy.client_sockets;
@@ -96,8 +43,72 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 		if (line.find("server") == 0)
 			continue;
 		if (iss >> key >> value)
+		{
+			if (key == "listen")
+				ports.push_back(stoi(value));
 			server_config[key] = value;
+		}
 	}
+}
+
+void ServerSocket::Init(const std::string &configFile)
+{
+	readConfigFile(configFile);
+
+    FD_ZERO(&active_sockets);
+
+
+    for (size_t i = 0; i < ports.size(); ++i)
+    {
+        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd < 0)
+        {
+            perror("In socket");
+            exit(EXIT_FAILURE);
+        }
+
+        int opt = 1;
+        if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+        {
+            perror("In setsockopt");
+            exit(EXIT_FAILURE);
+        }
+
+        fcntl(server_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
+
+		struct sockaddr_in server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        server_addr.sin_port = htons(ports[i]);
+
+        if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+        {
+            perror("In bind");
+            close(server_fd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (listen(server_fd, MAX_CLIENTS) < 0)
+        {
+            perror("In listen");
+            close(server_fd);
+            exit(EXIT_FAILURE);
+        }
+
+        FD_SET(server_fd, &active_sockets);
+        server_fds.push_back(server_fd);
+        max_socket = std::max(max_socket, server_fd);
+    }
+
+    std::cout << "----Awaiting connections on port(s): ";
+    for (size_t i = 0; i < ports.size(); ++i)
+        std::cout << ports[i] << " ";
+    std::cout << "----" << std::endl
+              << std::endl;
+
+	while (1)
+		Loop();
 }
 
 std::string ServerSocket::executeCGIScript(const std::string &cgiScriptPath, const std::string &script_content)
@@ -152,95 +163,10 @@ std::string ServerSocket::executeCGIScript(const std::string &cgiScriptPath, con
 	}
 }
 
-// void ServerSocket::Loop()
-// {
-// 	std::string buffer;
-// 	buffer.clear();
-// 	ready_sockets = active_sockets;
-
-// 	if (select(max_socket + 1, &ready_sockets, NULL, NULL, NULL) <= 0)
-// 	{
-// 		std::cerr << "Error in select(): " << strerror(errno) << std::endl;
-// 		exit(1);
-// 	}
-
-// 	for (size_t i = 0; i < server_fds.size(); ++i)
-// 	{
-// 		int socket_ID = server_fds[i];
-
-// 		if (FD_ISSET(socket_ID, &ready_sockets))
-// 		{
-// 			if (socket_ID == server_fds[i])
-// 			{
-// 				std::cout << "Handling incoming connections on port " << ntohs(server_addr.sin_port) << std::endl;
-
-// 				// while (1)
-// 				// {
-// 					int client_socket = accept(socket_ID, NULL, NULL);
-// 					if (client_socket < 0)
-// 					{
-// 						perror("Error accepting client connection");
-// 						exit(1);
-// 					}
-
-// 					fcntl(client_socket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-
-// 					FD_SET(client_socket, &active_sockets);
-// 					max_socket = (client_socket > max_socket) ? client_socket : max_socket;
-
-// 					std::cout << "Client connected, socket: " << client_socket << std::endl;
-// 					client_sockets.push_back(client_socket);
-// 					// break;
-// 				// }
-// 			}
-// 			else
-// 			{
-// 				int bytesRead;
-// 				char tmpBuffer[100];
-// 				memset(tmpBuffer, 0, sizeof(tmpBuffer));
-// 				while ((bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, 0)) > 0)
-// 				{
-// 					buffer.append(tmpBuffer, bytesRead);
-// 					memset(tmpBuffer, 0, bytesRead);
-// 				}
-// 				if (bytesRead == 0)
-// 				{
-// 					close(socket_ID);
-// 					FD_CLR(socket_ID, &active_sockets);
-// 					// Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
-// 					client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-// 				}
-// 				else if (bytesRead < 0 && errno != EWOULDBLOCK)
-// 				{
-// 					perror("error in read");
-// 					exit(1);
-// 				}
-// 				else
-// 				{
-// 					std::cout << std::endl
-// 							  << "[BUFFER]" << std::endl
-// 							  << buffer << std::endl;
-// 					for (int i = 0; i < client_sockets.size(); i++)
-// 					{
-// 						std::cout << "socket_ID = " << socket_ID << std::endl;
-// 						std::cout << "client_sockets.size() = " << client_sockets.size() << std::endl;
-// 						std::cout << "client_sockets[i] = " << client_sockets[i] << std::endl;
-// 						std::string response = handleHttpRequest(buffer);
-// 						send(client_sockets[i], response.c_str(), response.size(), 0);
-// 						client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-// 						close(socket_ID);
-// 						FD_CLR(socket_ID, &active_sockets);
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-bool connectionAccepted = false;
-
 void ServerSocket::Loop()
 {
+	int i = 0;
+
 	std::string buffer;
 	buffer.clear();
 	ready_sockets = active_sockets;
@@ -255,12 +181,12 @@ void ServerSocket::Loop()
 	{
 		if (FD_ISSET(socket_ID, &ready_sockets))
 		{
-			for (size_t j = 0; j < server_fds.size(); j++)
+			while (i < server_fds.size())
 			{
-				if (socket_ID == server_fds[j])
+				if (socket_ID == server_fds[i])
 				{
 					std::cout << "ERROR 2, socket_ID: " << socket_ID << std::endl;
-					int client_socket = accept(socket_ID, NULL, NULL);
+					int client_socket = accept(server_fds[i], NULL, NULL);
 					std::cout << "client_sockets accepted " << client_socket << std::endl;
 					if (client_socket < 0)
 					{
@@ -272,49 +198,47 @@ void ServerSocket::Loop()
 					FD_SET(client_socket, &active_sockets);
 					max_socket = (client_socket > max_socket) ? client_socket : max_socket;
 					client_sockets.push_back(client_socket);
-					connectionAccepted = true;
 					break;
+				}
+				i++;
+			}
+			if (socket_ID != server_fds[i])
+			{
+				int bytesRead;
+				char tmpBuffer[100];
+				memset(tmpBuffer, 0 , sizeof(tmpBuffer));
+				while ((bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, 0)) > 0)
+				{
+					buffer.append(tmpBuffer, bytesRead);
+					memset(tmpBuffer, 0, bytesRead);
+				}
+				if (bytesRead == 0)
+				{
+					close(socket_ID);
+					FD_CLR(socket_ID, &active_sockets);
+					// Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
+					client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
+				}
+				else if (bytesRead < 0 && errno != EWOULDBLOCK)
+				{
+					perror("error in read");
+					exit(1);
 				}
 				else
 				{
-					int bytesRead;
-					char tmpBuffer[100];
-					memset(tmpBuffer, 0 , sizeof(tmpBuffer));
-					while ((bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, 0)) > 0)
+					std::cout << std::endl << "[BUFFER]" << std::endl << buffer << std::endl;
+					for (int i = 0; i < client_sockets.size(); i++)
 					{
-						buffer.append(tmpBuffer, bytesRead);
-						memset(tmpBuffer, 0, bytesRead);
-					}
-					if (bytesRead == 0)
-					{
+						std::cout << "socket_ID = " << socket_ID << std::endl;
+						std::cout << "client_sockets.size() = " << client_sockets.size() << std::endl;
+						std::cout << "client_sockets[i] = " << client_sockets[i] << std::endl;
+						std::string response = handleHttpRequest(buffer);
+						send(client_sockets[i], response.c_str(), response.size(), 0);
+						client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
 						close(socket_ID);
 						FD_CLR(socket_ID, &active_sockets);
-						// Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
-						client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-					}
-					else if (bytesRead < 0 && errno != EWOULDBLOCK)
-					{
-						perror("error in recv");
-						exit(1);
-					}
-					else
-					{
-						std::cout << std::endl << "[BUFFER]" << std::endl << buffer << std::endl;
-						for (int i = 0; i < client_sockets.size(); i++)
-						{
-							std::cout << "socket_ID = " << socket_ID << std::endl;
-							std::cout << "client_sockets.size() = " << client_sockets.size() << std::endl;
-							std::cout << "client_sockets[i] = " << client_sockets[i] << std::endl;
-							std::string response = handleHttpRequest(buffer);
-							send(client_sockets[i], response.c_str(), response.size(), 0);
-							client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-							close(socket_ID);
-							FD_CLR(socket_ID, &active_sockets);
-						}
 					}
 				}
-				if (connectionAccepted)
-					break;
 			}
 		}
 	}
@@ -330,15 +254,13 @@ int main(int argc, char **argv)
 		/* 	do ss.Init() */
 		/* else */
 		/* 	error */
-		// ServerSocket ss;
-		// ss.Init(argv[1]);
+		ServerSocket ss;
+		ss.Init(argv[1]);
 	}
 	else if (argc == 1)
 	{
 		ServerSocket ss;
-		// ss.Init("tools/config.txt");
-		while (1)
-			ss.Loop();
+		ss.Init("tools/config.txt");
 	}
 	else
 		std::cout << "Wrong number of arguments" << std::endl;
