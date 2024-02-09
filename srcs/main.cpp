@@ -173,12 +173,27 @@ void ServerSocket::Loop()
 	std::string buffer;
 	buffer.clear();
 	ready_sockets = active_sockets;
+
+	// TIMEOUT TO ADD OR NOT
+	// struct timeval timeout;
+    // timeout.tv_sec = 60;  // timeout 60 seconds
+    // timeout.tv_usec = 0;
+	// int selectRes = select(max_socket + 1, &ready_sockets, NULL, NULL, &timeout);
+	// if (selectRes == -1)
+	// {
+	// 	std::cerr << "Error in select(): " << strerror(errno) << std::endl;
+	// 	exit(1);
+	// }
+	// if (selectRes == 0)
+    //     std::cerr << "Timeout in select()" << strerror(errno) << std::endl;
+
 	if (select(max_socket + 1, &ready_sockets, NULL, NULL, NULL) <= 0)
 	{
 		std::cerr << "Error in select(): " << strerror(errno) << std::endl;
 		exit(1);
 	}
-	std::cout << "max_socket dÃ©but " << max_socket << std::endl;
+
+	std::cout << "max_socket début " << max_socket << std::endl;
 
 	for (int socket_ID = 0; socket_ID <= max_socket; socket_ID++)
 	{

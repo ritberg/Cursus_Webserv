@@ -17,7 +17,8 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	char **argv = (char **)malloc(sizeof(char *) * 3);
 	char **envp;
 
-	std::string path = "/Users/joerober/code/webserv/rendu" + cgiScriptPath;
+	// std::string path = "/Users/joerober/code/webserv/rendu" + cgiScriptPath;
+	std::string path = "/Users/mmakarov/Documents/webserverIntra" + cgiScriptPath;
 	argv[0] = strdup(shebang.c_str());
 	argv[1] = strdup(path.c_str());
 	argv[2] = 0;

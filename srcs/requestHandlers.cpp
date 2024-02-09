@@ -124,7 +124,22 @@ std::string extractFilename(const std::string& header) {
 	return filename;
 }
 
+
 std::string ServerSocket::handlePostRequest(const std::string& path, const std::string& buffer) {
+	if (path == "/tools/cgi-bin/calculator.php")
+	{
+		std::size_t lastNewline = buffer.rfind('\n');
+		std::string lastLine;
+
+		if (lastNewline != std::string::npos)
+		{
+			lastLine = buffer.substr(lastNewline + 1); // lastLine should be QUERY_STRING variable
+			// std::cout << "Last Line: " << lastLine << std::endl;
+			std::string res = executeCGIScript("/usr/bin/php", path, lastLine, "");
+			return ("HTTP/1.1 200 OK\r\n\r\n" + res);
+		}
+		return "Unsupported HTTP method\n";
+	}
 	std::string body;
 	std::string boundary;
 	size_t pos_marker = buffer.find("boundary=");
@@ -157,10 +172,9 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 
 		return handleGetRequest(path, buffer) + "\nSuccessfully uploaded!<br>";
 	}
-	if (path.find(".php") != std::string::npos)
+	if (path.find("cgi.php") != std::string::npos)
 	{
 		std::string res = executeCGIScript("/usr/bin/php", path, body, filename);
-
 		return ("HTTP/1.1 200 OK\r\n\r\n" + res);
 	}
 	return "Unsupported HTTP method\n";
@@ -168,7 +182,7 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 
 std::string ServerSocket::handleDeleteRequest(const std::string& path)
 {
-	if ((path == "/upload.html" || path == "/cgi-bin/cgi.php") && !uploaded_files.empty())
+	if ((path == "/upload.html" || path == "/cgi-bin/cgi.php.php") && !uploaded_files.empty())
 	{
 		std::string lastFilename = uploaded_files.back();
 		uploaded_files.pop_back();
