@@ -202,6 +202,8 @@ void ServerSocket::Loop()
 				}
 				i++;
 			}
+			if (i == 2)
+				i--;
 			if (socket_ID != server_fds[i])
 			{
 				int bytesRead;
