@@ -5,23 +5,34 @@
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Photo Upload CGI</title>
+		<style>
+body {
+	font-family: Arial, sans-serif;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+	text-align: center;
+}
+		</style>
 	</head>
 	<body>
-		<h1>Photo uploading</h1>
-
+		<h1 style="font-family: 'Times New Roman', serif;">FILE UPLOADER</h1>
 		<form action='' method='post' enctype='multipart/form-data'>
-			<label for='name'>Your Name:</label>
+			<label for='name'>Name</label>
+			<br>
 			<input type='text' name='name'>
 			<br>
-			<label for='photo'>Choose a photo:</label>
+			<br>
+			<label for='photo'>Choose file</label>
+			<br>
 			<input type='file' name='photo'>
 			<br>
-			<input type='submit' value='Upload'>
+			<input type='submit' value='Upload' style="transform: translate(-167%, 0%);">
 		</form>
 
 		<form action='' method='post' id='deleteForm'>
 			<input type='hidden' name='action' value='delete'>
-			<input type='button' value='Delete' onclick='sendDeleteRequest()'>
+			<input type='button' value='Delete' onclick='sendDeleteRequest()' style="transform: translate(-183%, 0%);">
 		</form>
 
 		<script>

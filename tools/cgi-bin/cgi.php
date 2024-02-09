@@ -1,11 +1,11 @@
 <?php
 // HTML content
-echo "<html><head><title>Photo Upload CGI</title></head><body>";
-echo "<h1>Photo uploading</h1>";
 
 // Check if the form has been submitted
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+//if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     // Retrieve user input from the form
+    echo "<html><head><title>Photo Upload CGI</title></head><body>";
+    echo "<h1>Photo uploading</h1>";
     echo "<form action='' method='post' enctype='multipart/form-data'>";
     echo "  <label for='name'>Your Name:</label>";
     echo "  <input type='text' name='name'>";
@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "  <br>";
     echo "  <input type='submit' value='Upload'>";
     echo "</form>";
+    echo "</body></html>";
 
     // Display additional button for delete
     echo "<form action='' method='post' id='deleteForm'>";
@@ -22,9 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     echo "  <input type='button' value='Delete' onclick='sendDeleteRequest()'>";
     echo "</form>";
 
+//}
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $filename = getenv('FILENAME');
+    $path = "/Users/joerober/code/webserv/rendu/uploaded_files/" . $filename;
+    $file = fopen($path, 'a+');
+    while (FALSE !== ($line = fgets(STDIN))) {
+        fwrite($file, $line);
+        //echo $line;
+    }
+    fclose($file);
 }
-
-echo "</body></html>";
 ?>
 
 <script>

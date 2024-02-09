@@ -26,8 +26,30 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 
 ServerSocket::~ServerSocket() {}
 
+void ServerSocket::parseLocation(const std::vector<std::string>& tmpLine, int index)
+{
+	std::map<std::string, std::string> tmp;
+	for (size_t i = 0; i < tmpLine.size(); i++)
+	{
+		std::string toRead = tmpLine[i];
+		std::istringstream iss(toRead);
+		std::string key, value;
+		if (iss >> key >> value)
+		{
+			if (key == "}")
+				break;
+			tmp[key] = value;
+		}
+		std::cout << "index: " << index << " " <<  "key: " << key << " " << "value: " << value << std::endl;
+	}
+	server_location.push_back(tmp);
+	//nb_locations = index + 1; // how many locations in config file
+}
+
 void ServerSocket::readConfigFile(const std::string &configFile)
 {
+	int index = 0;
+	int trigger;
 	std::ifstream file(configFile);
 	if (!file.is_open())
 	{
@@ -46,8 +68,41 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 		{
 			if (key == "listen")
 				ports.push_back(stoi(value));
+			if (key == "location")
+			{
+				trigger = 0;
+				std::vector<std::string> tmpLine;
+				if (line.find("{") == std::string::npos)
+				{
+					std::cerr << "wrong config format" << std::endl;
+					exit(1);
+				}
+				tmpLine.push_back(line);
+				while (std::getline(file, line))
+				{
+					if (line.find("{") != std::string::npos)
+					{
+						std::cerr << "wrong config format" << std::endl;
+						exit(1);
+					}
+					if (line.find("}") != std::string::npos)
+					{
+						trigger = 1;
+						break;
+					}
+					tmpLine.push_back(line);
+				}
+				if (trigger == 0)
+				{
+					std::cerr << "wrong config format" << std::endl;
+					exit(1);
+				}
+				parseLocation(tmpLine, index);
+				index++;
+			}
 			server_config[key] = value;
 		}
+		// std::cout << "key: " << key << " " << "value: " << value << std::endl;
 	}
 }
 
@@ -111,58 +166,6 @@ void ServerSocket::Init(const std::string &configFile)
 		Loop();
 }
 
-std::string ServerSocket::executeCGIScript(const std::string &cgiScriptPath, const std::string &script_content)
-{
-	int stdin_pipe[2];
-	int stdout_pipe[2];
-	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
-	{
-		perror("In pipe");
-		exit(EXIT_FAILURE);
-	}
-	pid_t pid = fork();
-	if (pid == -1)
-	{
-		perror("In fork");
-		exit(EXIT_FAILURE);
-	}
-	if (pid == 0)
-	{
-		close(stdin_pipe[1]);
-		close(stdout_pipe[0]);
-		dup2(stdin_pipe[0], STDIN_FILENO);
-		dup2(stdout_pipe[1], STDOUT_FILENO);
-
-		const char *const argv[] = {cgiScriptPath.c_str(), NULL};
-		const char *const envp[] = {"REQUEST_METHOD=POST", "CONTENT_TYPE=application/x-www-form-urlencoded", NULL};
-
-		execve(cgiScriptPath.c_str(), const_cast<char *const *>(argv), const_cast<char *const *>(envp));
-		perror("In execve");
-		exit(EXIT_FAILURE);
-		return "";
-	}
-	else
-	{
-		close(stdin_pipe[0]);
-		close(stdout_pipe[1]);
-		write(stdin_pipe[1], script_content.c_str(), script_content.size());
-		close(stdin_pipe[1]);
-
-		char buffer[100000];
-		std::string response_data;
-
-		ssize_t bytes_read;
-		while ((bytes_read = read(stdout_pipe[0], buffer, BUFSIZ)) > 0)
-			response_data.append(buffer, bytes_read);
-
-		int status;
-		waitpid(pid, &status, 0);
-		std::cout << "response_data " << response_data << std::endl;
-
-		return response_data;
-	}
-}
-
 void ServerSocket::Loop()
 {
 	size_t i = 0;
@@ -175,7 +178,7 @@ void ServerSocket::Loop()
 		std::cerr << "Error in select(): " << strerror(errno) << std::endl;
 		exit(1);
 	}
-	std::cout << "max_socket début " << max_socket << std::endl;
+	std::cout << "max_socket dÃ©but " << max_socket << std::endl;
 
 	for (int socket_ID = 0; socket_ID <= max_socket; socket_ID++)
 	{
@@ -202,10 +205,11 @@ void ServerSocket::Loop()
 				}
 				i++;
 			}
-			if (i == 2)
+			if (i == server_fds.size())
 				i--;
 			if (socket_ID != server_fds[i])
 			{
+				std::cout << socket_ID << std::endl;
 				int bytesRead;
 				char tmpBuffer[100];
 				memset(tmpBuffer, 0 , sizeof(tmpBuffer));
@@ -223,6 +227,7 @@ void ServerSocket::Loop()
 				}
 				else if (bytesRead < 0 && errno != EWOULDBLOCK)
 				{
+					std::cout << errno << std::endl;
 					perror("error in read");
 					exit(1);
 				}
@@ -251,13 +256,16 @@ int main(int argc, char **argv)
 {
 	if (argc == 2)
 	{
-		/* Create file existence checker */
-		/* if (argv[1] exists) */
-		/* 	do ss.Init() */
-		/* else */
-		/* 	error */
-		ServerSocket ss;
-		ss.Init(argv[1]);
+		std::ifstream file(argv[1]);
+		if (file.is_open())
+		{
+			file.close();
+			ServerSocket ss;
+			ss.Init(argv[1]);
+		}
+		else
+			std::cerr << "Error: Unexistant configuration file" << std::endl;
+		file.close();
 	}
 	else if (argc == 1)
 	{

@@ -1,6 +1,6 @@
 #include "webserv.hpp"
 
-std::string ServerSocket::getFileInfo(const std::string path, int type)
+std::string ServerSocket::getFileInfo(std::string path, int type)
 {
 	FILE * fin;
 	struct stat s;
@@ -12,8 +12,31 @@ std::string ServerSocket::getFileInfo(const std::string path, int type)
 	path_mod.erase(0, 1);
 	if (stat(path_mod.c_str(), &s) == 0)
 	{
-		if( s.st_mode & S_IFDIR )
-			path_mod = path_mod + "/index.html";
+		if(s.st_mode & S_IFDIR)
+		{
+			path_mod = "tools/404.html";
+			if (path[path.length() - 1] != '/')
+				path.append("/");
+			for (size_t i = 0; i < server_location.size(); i++)
+			{
+	 			std::map<std::string, std::string>::iterator it = server_location[i].find("location");
+				if (it != server_location[i].end())
+				{
+					if (it->second == path)
+					{
+						it = server_location[i].find("autoindex");
+						if (it != server_location[i].end())
+						{
+							if (it->second == "on")
+							{
+								path_mod = path + "index.html";
+								path_mod.erase(0, 1);
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 	//if the type is html, the file might be "", meaning it is the index
 	if (type == 0)
@@ -60,25 +83,30 @@ std::string ServerSocket::handleGetRequest(const std::string &path, const std::s
 {
 	std::string response;
 
-	if (path == "/tools/cgi-bin/cgi.php")
+	for (size_t i = 0; i < server_location.size(); i++)
 	{
-		std::ifstream file("tools/cgi-bin/cgi.php");
-		if (file.is_open())
+	 	std::map<std::string, std::string>::iterator it = server_location[i].find("location");
+		if (it != server_location[i].end())
 		{
-			std::ostringstream oss;
-			oss << "HTTP/1.1 200 OK\r\n\r\n";
-			std::string scriptContent;
-			while (!file.eof())
+			if (it->second == path)
 			{
-				char ch;
-				file.get(ch);
-				scriptContent += ch;
+				it = server_location[i].find("redirect");
+				if (it != server_location[i].end())
+				{
+					response = "HTTP/1.1 302 Found\r\nLocation: " + it->second + "\r\n\r\n";
+					return (response);
+				}
 			}
-			// Use CGI script for GET request, just to display the web page
-			return oss.str() + executeCGIScript("/usr/bin/php", scriptContent);
 		}
 	}
-	if (buffer.find("Accept: text/html") != std::string::npos)
+	if (path.find(".php") != std::string::npos)
+	{
+		std::ostringstream oss;
+		oss << "HTTP/1.1 200 OK\r\n\r\n";
+		// Use CGI script for GET request, just to display the web page
+		return oss.str() + executeCGIScript("/usr/bin/php", path, "", "");
+	}
+	else if (buffer.find("Accept: text/html") != std::string::npos)
 		response = getFileInfo(path, 0);
 	else
 		response = getFileInfo(path, 1);
@@ -117,26 +145,23 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	std::string contentDispositHeader = buffer.substr(contentDispositPos, end_marker - contentDispositPos);
 	std::string filename = extractFilename(contentDispositHeader);
 
-	std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
-	if (outfile.fail())
-		return "No file was chosen";
-
 	uploaded_files.push_back(filename);
 
 	if (path == "/tools/upload.html")
 	{
+		std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
+		if (outfile.fail())
+			return "No file was chosen";
 		outfile << body; // Put the body of the uploaded file into the folder
 		outfile.close();
 
 		return handleGetRequest(path, buffer) + "\nSuccessfully uploaded!<br>";
 	}
-	if (path == "/tools/cgi-bin/cgi.php")
+	if (path.find(".php") != std::string::npos)
 	{
-		std::string res = executeCGIScript("/usr/bin/php", body);
-		outfile << res;
-		outfile.close();
+		std::string res = executeCGIScript("/usr/bin/php", path, body, filename);
 
-		return handleGetRequest(path, buffer) + "<label for=\"name\">Successfully uploaded!</label><br>";
+		return ("HTTP/1.1 200 OK\r\n\r\n" + res);
 	}
 	return "Unsupported HTTP method\n";
 }
