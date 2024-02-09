@@ -11,7 +11,7 @@ ServerSocket::ServerSocket(const ServerSocket &copy)
 
 ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 {
-	for (int i = 0; i < server_fds.size(); i++)
+	for (size_t i = 0; i < server_fds.size(); i++)
 		server_fds[i] = copy.server_fds[i];
 	max_socket = copy.max_socket;
 	server_addr = copy.server_addr;
@@ -165,7 +165,7 @@ std::string ServerSocket::executeCGIScript(const std::string &cgiScriptPath, con
 
 void ServerSocket::Loop()
 {
-	int i = 0;
+	size_t i = 0;
 
 	std::string buffer;
 	buffer.clear();
@@ -227,7 +227,7 @@ void ServerSocket::Loop()
 				else
 				{
 					std::cout << std::endl << "[BUFFER]" << std::endl << buffer << std::endl;
-					for (int i = 0; i < client_sockets.size(); i++)
+					for (size_t i = 0; i < client_sockets.size(); i++)
 					{
 						std::cout << "socket_ID = " << socket_ID << std::endl;
 						std::cout << "client_sockets.size() = " << client_sockets.size() << std::endl;
