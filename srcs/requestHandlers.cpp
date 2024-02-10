@@ -128,6 +128,7 @@ std::string extractFilename(const std::string& header) {
 std::string ServerSocket::handlePostRequest(const std::string& path, const std::string& buffer) {
 	if (path == "/tools/cgi-bin/calculator.php")
 	{
+
 		std::size_t lastNewline = buffer.rfind('\n');
 		std::string lastLine;
 
@@ -136,9 +137,54 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 			lastLine = buffer.substr(lastNewline + 1); // lastLine should be QUERY_STRING variable
 			// std::cout << "Last Line: " << lastLine << std::endl;
 			std::string res = executeCGIScript("/usr/bin/php", path, lastLine, "");
+		// std::istringstream stream(buffer);
+		// std::string line;
+
+	// 	int num1 = 0, num2 = 0, result = 0;
+	// 	std::string operatorStr;
+
+	// 	while (std::getline(stream, line))
+	// 	{
+	// 		size_t pos = line.find("Content-Disposition: form-data; name=\"");
+	// 		if (pos != std::string::npos) {
+	// 			pos = line.find("name=\"") + 6;
+	// 			size_t endPos = line.find("\"", pos);
+	// 			std::string fieldName = line.substr(pos, endPos - pos);
+
+	// 			std::getline(stream, line);
+	// 			std::getline(stream, line);
+
+	// 			if (fieldName == "num1" || fieldName == "operator" || fieldName == "num2")
+	// 			{
+	// 				if (fieldName == "num1")
+	// 					num1 = std::atoi(line.c_str());
+	// 				else if (fieldName == "operator")
+	// 					operatorStr = line;
+	// 				else if (fieldName == "num2")
+	// 					num2 = std::atoi(line.c_str());
+	// 			}
+	// 		}
+	// 	}
+    // 	if (operatorStr == "add")
+    //     	result = num1 + num2;
+    	// else if (operatorStr == "subtract")
+        // 	result = num1 - num2;
+    	// else if (operatorStr == "multiply")
+        // 	result = num1 * num2;
+    	// else if (operatorStr == "divide")
+        // 	result = (num2 != 0) ? num1 / num2 : 0; 
+    	// else 
+        // 	std::cout << "Invalid operator" << std::endl;
+
+    	// std::cout << "Result: " << result << std::endl;
+	
+			// std::string res = executeCGIScript("/usr/bin/php", path, "3", "");
+
+			std::cout << "!!!!" << res << std::endl;
+
 			return ("HTTP/1.1 200 OK\r\n\r\n" + res);
 		}
-		return "Unsupported HTTP method\n";
+
 	}
 	std::string body;
 	std::string boundary;
