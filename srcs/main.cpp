@@ -202,10 +202,11 @@ int _receive(int socket_ID, std::string & buffer)
 
 int ServerSocket::_respond(int socket_ID, std::string & buffer)
 {
+	int ret;
 	std::string response;
 	response = handleHttpRequest(buffer);
-	send(socket_ID, response.c_str(), response.size(), 0);
-	return 0;
+	ret = send(socket_ID, response.c_str(), response.size(), 0);
+	return ret;
 }
 
 void ServerSocket::Loop(bool end)
@@ -230,7 +231,7 @@ void ServerSocket::Loop(bool end)
 		}
 		ready = ret;
 		std::cout << "max_socket début " << max_socket << std::endl;
-
+		std::cout << "==== WAITING ====" << std::endl;
 		for (int socket_ID = 0; socket_ID <= max_socket && ready > 0; socket_ID++)
 		{
 			if (FD_ISSET(socket_ID, &ready_sockets))
@@ -250,6 +251,7 @@ void ServerSocket::Loop(bool end)
 							}
 							break;
 						}
+						std::cout << "server socket: " << new_sd << std::endl;
 						FD_SET(new_sd, &active_sockets);
 						max_socket = (new_sd > max_socket) ? new_sd : max_socket;
 						if (new_sd == -1)
