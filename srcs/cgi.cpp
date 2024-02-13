@@ -17,8 +17,12 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	char **argv = (char **)malloc(sizeof(char *) * 3);
 	char **envp;
 
-	// std::string path = "/Users/joerober/code/webserv/rendu" + cgiScriptPath;
-	std::string path = "/Users/mmakarov/Documents/WebServ" + cgiScriptPath;
+	std::string path;
+	std::map<std::string, std::string>::iterator it = server_config.find("web_root");
+	if (it != server_config.end())
+		path = it->second + cgiScriptPath;
+	else
+		path = cgiScriptPath;
 	argv[0] = strdup(shebang.c_str());
 	argv[1] = strdup(path.c_str());
 	argv[2] = 0;
@@ -66,7 +70,7 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 		write(stdin_pipe[1], body.c_str(), body.size());
 		close(stdin_pipe[1]);
 
-		char buffer[100];
+		char buffer[1024];
 		memset(buffer, 0, sizeof(buffer));
 
 		std::string response_data;

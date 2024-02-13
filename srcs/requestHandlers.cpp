@@ -124,68 +124,7 @@ std::string extractFilename(const std::string& header) {
 	return filename;
 }
 
-
 std::string ServerSocket::handlePostRequest(const std::string& path, const std::string& buffer) {
-	if (path == "/tools/cgi-bin/calculator.php")
-	{
-
-		std::size_t lastNewline = buffer.rfind('\n');
-		std::string lastLine;
-
-		if (lastNewline != std::string::npos)
-		{
-			lastLine = buffer.substr(lastNewline + 1); // lastLine should be QUERY_STRING variable
-			// std::cout << "Last Line: " << lastLine << std::endl;
-			std::string res = executeCGIScript("/usr/bin/php", path, lastLine, "");
-		// std::istringstream stream(buffer);
-		// std::string line;
-
-	// 	int num1 = 0, num2 = 0, result = 0;
-	// 	std::string operatorStr;
-
-	// 	while (std::getline(stream, line))
-	// 	{
-	// 		size_t pos = line.find("Content-Disposition: form-data; name=\"");
-	// 		if (pos != std::string::npos) {
-	// 			pos = line.find("name=\"") + 6;
-	// 			size_t endPos = line.find("\"", pos);
-	// 			std::string fieldName = line.substr(pos, endPos - pos);
-
-	// 			std::getline(stream, line);
-	// 			std::getline(stream, line);
-
-	// 			if (fieldName == "num1" || fieldName == "operator" || fieldName == "num2")
-	// 			{
-	// 				if (fieldName == "num1")
-	// 					num1 = std::atoi(line.c_str());
-	// 				else if (fieldName == "operator")
-	// 					operatorStr = line;
-	// 				else if (fieldName == "num2")
-	// 					num2 = std::atoi(line.c_str());
-	// 			}
-	// 		}
-	// 	}
-    // 	if (operatorStr == "add")
-    //     	result = num1 + num2;
-    	// else if (operatorStr == "subtract")
-        // 	result = num1 - num2;
-    	// else if (operatorStr == "multiply")
-        // 	result = num1 * num2;
-    	// else if (operatorStr == "divide")
-        // 	result = (num2 != 0) ? num1 / num2 : 0; 
-    	// else 
-        // 	std::cout << "Invalid operator" << std::endl;
-
-    	// std::cout << "Result: " << result << std::endl;
-	
-			// std::string res = executeCGIScript("/usr/bin/php", path, "3", "");
-
-			std::cout << "!!!!" << res << std::endl;
-
-			return ("HTTP/1.1 200 OK\r\n\r\n" + res);
-		}
-
-	}
 	std::string body;
 	std::string boundary;
 	size_t pos_marker = buffer.find("boundary=");
@@ -201,7 +140,13 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
 	while (++i < buffer.length() && i < end_marker - 2)
 		body.push_back(buffer[i]);
-
+	std::map<std::string, std::string>::iterator it = server_config.find("client_max_body_size");
+	if (it != server_config.end())
+	{
+		int len = body.length();
+		if (len > stoi(it->second))
+			return ("HTTP/1.1 413 Content Too Large\r\n\r\n413 Content Too Large");
+	}
 	size_t contentDispositPos = buffer.find("Content-Disposition");
 	std::string contentDispositHeader = buffer.substr(contentDispositPos, end_marker - contentDispositPos);
 	std::string filename = extractFilename(contentDispositHeader);
@@ -218,9 +163,10 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 
 		return handleGetRequest(path, buffer) + "\nSuccessfully uploaded!<br>";
 	}
-	if (path.find("cgi.php") != std::string::npos)
+	if (path.find(".php") != std::string::npos)
 	{
 		std::string res = executeCGIScript("/usr/bin/php", path, body, filename);
+
 		return ("HTTP/1.1 200 OK\r\n\r\n" + res);
 	}
 	return "Unsupported HTTP method\n";
@@ -228,7 +174,7 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 
 std::string ServerSocket::handleDeleteRequest(const std::string& path)
 {
-	if ((path == "/upload.html" || path == "/cgi-bin/cgi.php.php") && !uploaded_files.empty())
+	if ((path == "/upload.html" || path == "/cgi-bin/cgi.php") && !uploaded_files.empty())
 	{
 		std::string lastFilename = uploaded_files.back();
 		uploaded_files.pop_back();

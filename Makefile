@@ -24,7 +24,7 @@ OBJS		:= ${addprefix ${OBJS_DIR}, ${OBJS_FILES}}
 
 #COMMANDS
 CC			= c++
-CFLAGS		= -Wall -Wextra -Werror -std=c++98 -g3 -fsanitize=address
+CFLAGS		= -Wall -Wextra -Werror -std=c++98 
 AR			= ar rcs
 MKDIR		= mkdir -p
 RM			= rm -rf
@@ -35,7 +35,7 @@ all: ${NAME}
 
 #Compile normal executable
 ${NAME}: ${OBJS_DIR} ${OBJS}
-	@${CC} ${CFLAGS} ${INCS} ${OBJS} -o ${NAME}
+	@${CC} ${INCS} ${OBJS} -o ${NAME}
 	@echo "$(GREEN)[$(BOLD)OK$(NORMAL)]$(GREEN)$(NORMAL) created and compiled object files"
 	@echo "$(GREEN)[$(BOLD)OK$(NORMAL)]$(GREEN)$(NORMAL) $(BOLD)$(NAME)$(NORMAL) is ready"
 
@@ -46,7 +46,7 @@ ${OBJS_DIR}:
 #Compile normals objects
 ${OBJS_DIR}%.o: ${SRCS_DIR}%.cpp
 	@echo "$(RED)[$(BOLD)Compiling$(NORMAL)$(RED)]$(NORMAL) $<$(UP)$(CUT)"
-	@${CC} ${CFLAGS} ${INCS} -o $@ -c $<
+	@${CC} ${INCS} -o $@ -c $<
 
 #Clean obj files
 clean:

@@ -4,7 +4,7 @@ server {
 	host 127.0.0.1
 	server_name SimpleWebServer
 	error_page /tools/404.html
-	client_max_body_size 1000000
+	client_max_body_size 100000
 	web_root /Users/mmakarov/Documents/webservIntra
 	index index.html
 
@@ -42,7 +42,7 @@ server {
 	}
 
 	location /test3 {
-		redirect /kfjdsakljfds
+		redirect /tools/image-bin
 	}
 
 }
