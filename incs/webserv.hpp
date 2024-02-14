@@ -36,6 +36,10 @@ class ServerSocket
 		std::vector<std::map<std::string, std::string> > server_location;
 		std::vector<std::string> uploaded_files;
 
+		bool _check(int socket_ID);//
+		int _receive(int socket_ID, std::string & buffer); //
+		int _respond(int socket_ID, std::string & buffer); //
+
 	public:
 		ServerSocket();
 		ServerSocket(const ServerSocket &copy);
@@ -44,8 +48,6 @@ class ServerSocket
 
 
 		void Init(const std::string &configFile);
-		bool _check(int socket_ID);//
-		int _respond(int socket_ID, std::string & buffer); //
 		void Loop(bool end); //
 		void readConfigFile(const std::string &configFile);
 		void parseLocation(const std::vector<std::string>& tmpLine, int index);

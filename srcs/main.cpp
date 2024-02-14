@@ -178,25 +178,32 @@ bool ServerSocket::_check(int socket_ID)
 	return false;
 }
 
-int _receive(int socket_ID, std::string & buffer)
+int ServerSocket::_receive(int socket_ID, std::string & buffer)
 {
-	// buffer.clear();
+	buffer.clear();
 	int bytesRead;
 	char tmpBuffer[100];
-	memset(tmpBuffer, 0 , sizeof(tmpBuffer));
-	while ((bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, 0)) > 0)
-	{
-		std::cout << "erwerewr " << bytesRead << std::endl;
-		buffer.append(tmpBuffer, bytesRead);
-		memset(tmpBuffer, 0, bytesRead);
-	}
-	if (bytesRead == 0)
-	{
-		std::cout << "Connection was closed" << std::endl;
-		return 0;
-	}
-	else
-		return -1;
+	memset(tmpBuffer, 0, sizeof(tmpBuffer));
+	do {
+		bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, MSG_DONTWAIT);
+		if (bytesRead > 0)
+		{
+			tmpBuffer[bytesRead] = '\0';
+			buffer += tmpBuffer;
+			std::cout << "tmpBuffer " << tmpBuffer << std::endl;
+
+		}	
+		else if (bytesRead == 0)
+		{
+			std::cout << "Connection was closed" << std::endl;
+			return 0;
+		}
+		else if (bytesRead < 0 && errno != EWOULDBLOCK) // pas droit a l'errno !
+		{
+			perror("error in read");
+			exit(10);
+		}
+	} while (bytesRead == 99);
 	return bytesRead;
 }
 
@@ -212,7 +219,6 @@ int ServerSocket::_respond(int socket_ID, std::string & buffer)
 void ServerSocket::Loop(bool end)
 {
 	std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
-	// std::string response;
 	size_t i = 0;
 	int ret = 0, ready = 0, new_sd;
 	bool close_connection;
@@ -221,7 +227,6 @@ void ServerSocket::Loop(bool end)
 	ready_sockets = active_sockets;
 	while(!end)
 	{
-		buffer.clear();
 		memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
 		ret = select(max_socket + 1, &ready_sockets, NULL, NULL, NULL);
 		if (ret == -1)
@@ -231,7 +236,7 @@ void ServerSocket::Loop(bool end)
 		}
 		ready = ret;
 		std::cout << "max_socket début " << max_socket << std::endl;
-		std::cout << "==== WAITING ====" << std::endl;
+		std::cout << std::endl << "==== WAITING ====" << std::endl;
 		for (int socket_ID = 0; socket_ID <= max_socket && ready > 0; socket_ID++)
 		{
 			if (FD_ISSET(socket_ID, &ready_sockets))
@@ -264,6 +269,7 @@ void ServerSocket::Loop(bool end)
 					while (1)
 					{
 						ret = _receive(socket_ID, buffer);
+						std::cout << "ret " << ret << std::endl;
 						if (ret <= 0)
 						{
 							close_connection = true;
@@ -286,6 +292,7 @@ void ServerSocket::Loop(bool end)
 							while (!FD_ISSET(max_socket, &active_sockets))
 								max_socket -= 1;
 						}
+						return;
 					}
 				}
 			}
