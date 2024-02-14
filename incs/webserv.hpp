@@ -27,7 +27,7 @@ class ServerSocket
 		std::vector<int> ports;
     	int max_socket;
 		struct sockaddr_in server_addr;
-		std::vector<int> client_sockets;
+		// std::vector<int> client_sockets;
 		fd_set active_sockets, ready_sockets;
     	/* char buffer[MAX_BUFFER_SIZE]; */
 		std::map<std::string, std::string> server_config;

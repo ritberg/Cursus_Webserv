@@ -15,8 +15,7 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 		server_fds[i] = copy.server_fds[i];
 	max_socket = copy.max_socket;
 	server_addr = copy.server_addr;
-	client_sockets = copy.client_sockets;
-	client_sockets = copy.client_sockets;
+	// client_sockets = copy.client_sockets;
 	active_sockets = copy.active_sockets;
 	ready_sockets = copy.ready_sockets;
 	server_config = copy.server_config;
@@ -219,7 +218,7 @@ int ServerSocket::_respond(int socket_ID, std::string & buffer)
 void ServerSocket::Loop(bool end)
 {
 	std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
-	size_t i = 0;
+	// size_t i = 0;
 	int ret = 0, ready = 0, new_sd;
 	bool close_connection;
 
