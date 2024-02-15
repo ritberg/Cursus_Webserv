@@ -6,31 +6,46 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	struct stat s;
 	std::vector<char> bufferFile;
 	std::string response;
-	std::string path_mod;
+	std::string path_cpy;
 
-	path_mod = path;
-	path_mod.erase(0, 1);
-	if (stat(path_mod.c_str(), &s) == 0)
+	path_cpy = path;
+	std::map<std::string, std::string>::iterator it = server_config.find("web_root");
+	if (it != server_config.end())
+		path = it->second + path;
+	if (stat(path.c_str(), &s) == 0)
 	{
 		if(s.st_mode & S_IFDIR)
 		{
-			path_mod = "tools/404.html";
-			if (path[path.length() - 1] != '/')
-				path.append("/");
+			if (path_cpy[path_cpy.length() - 1] != '/')
+				path_cpy.append("/");
 			for (size_t i = 0; i < server_location.size(); i++)
 			{
 	 			std::map<std::string, std::string>::iterator it = server_location[i].find("location");
 				if (it != server_location[i].end())
 				{
-					if (it->second == path)
+					if (it->second == path_cpy)
 					{
 						it = server_location[i].find("autoindex");
 						if (it != server_location[i].end())
 						{
 							if (it->second == "on")
 							{
-								path_mod = path + "index.html";
-								path_mod.erase(0, 1);
+								std::map<std::string, std::string>::iterator it2 = server_config.find("index");
+								if (it2 != server_config.end())
+								{
+									if (path_cpy.length() == 1)
+										path = path + it2->second;
+									else
+										path = path + "/" + it2->second;		
+								}
+								else
+								{
+									if (path_cpy.length() == 1)
+										path = path + "index.html";
+									else
+										path = path + "/index.html";
+								}
+								path_cpy = "not / anymore";
 							}
 						}
 					}
@@ -38,27 +53,29 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 			}
 		}
 	}
+	std::cout << std::endl << path << std::endl << std::endl;
 	//if the type is html, the file might be "", meaning it is the index
-	if (type == 0)
+	if (type == 0 || type == -1)
 	{
-		if (path_mod[0] == 0)
-			fin = fopen("tools/home.html", "rb");
+		if (path_cpy.length() == 1)
+		{
+			path = path + "/home.html";
+			fin = fopen(path.c_str(), "rb");
+		}
 		else
-			fin = fopen(path_mod.c_str(), "rb");
+			fin = fopen(path.c_str(), "rb");
 	}
 	else
-		fin = fopen(path_mod.c_str(), "rb");
+		fin = fopen(path.c_str(), "rb");
 	if (fin == NULL)
 	{
 		//if the file doesn't exist, a special file is made to display error 404
+		if (type == -1)
+			return (buildErrorFiles("404 Not Found"));
 		if (type == 0)
-			fin = fopen("tools/404.html", "rb");
-		if (fin == NULL)
-		{
-			perror("file open error");
+			return (callErrorFiles(404));
+		else
 			return ("HTTP/1.1 404 Not Found\r\n\r\n");
-		}
-		type = -1;
 	}
 	//here we calculate the size of the file
 	fseek(fin, 0, SEEK_END);
@@ -72,10 +89,7 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	std::string content(bufferFile.begin(), bufferFile.end());
 	//std::string content_len = std::to_string((content.length() + 20));
 	//assembly of the response
-	if (type >= 0)
-		response = "HTTP/1.1 200 OK\r\n\r\n" + content;
-	else if (type == -1)
-		response = "HTTP/1.1 404 Not Found\r\n\r\n" + content;
+	response = "HTTP/1.1 200 OK\r\n\r\n" + content;
 	return (response);
 }
 
@@ -127,7 +141,31 @@ std::string extractFilename(const std::string& header) {
 std::string ServerSocket::handlePostRequest(const std::string& path, const std::string& buffer) {
 	std::string body;
 	std::string boundary;
+
+	std::map<std::string, std::string>::iterator it = server_config.find("client_max_body_size");
+	if (it != server_config.end())
+	{
+		int len = buffer.length();
+		if (len > stoi(it->second))
+			return (callErrorFiles(413));
+	}
+
 	size_t pos_marker = buffer.find("boundary=");
+	if (pos_marker == std::string::npos)
+	{
+		size_t pos_empty_line = buffer.find("\r\n\r\n");
+		std::string extracted_line;
+    	if (pos_empty_line != std::string::npos)
+		{
+        	std::string body = buffer.substr(pos_empty_line + 4);
+			std::istringstream body_stream(body);
+			std::getline(body_stream, extracted_line);
+
+			std::cout << "hello " << extracted_line << std::endl;
+		}
+		return ("HTTP/1.1 200 OK\r\n\r\n" + extracted_line);
+	}
+
 	size_t end_marker;
 	size_t i = pos_marker + std::string("boundary=").length() - 1;
 
@@ -140,24 +178,18 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	end_marker = buffer.find(boundary.substr(0, boundary.length() - 1), i);
 	while (++i < buffer.length() && i < end_marker - 2)
 		body.push_back(buffer[i]);
-	std::map<std::string, std::string>::iterator it = server_config.find("client_max_body_size");
-	if (it != server_config.end())
-	{
-		int len = body.length();
-		if (len > stoi(it->second))
-			return ("HTTP/1.1 413 Content Too Large\r\n\r\n413 Content Too Large");
-	}
 	size_t contentDispositPos = buffer.find("Content-Disposition");
 	std::string contentDispositHeader = buffer.substr(contentDispositPos, end_marker - contentDispositPos);
 	std::string filename = extractFilename(contentDispositHeader);
 
 	uploaded_files.push_back(filename);
 
-	if (path == "/tools/upload.html")
+	if (path == "/upload.html")
 	{
 		std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
 		if (outfile.fail())
 			return "No file was chosen";
+		std::cout << "body " << body << std::endl;
 		outfile << body; // Put the body of the uploaded file into the folder
 		outfile.close();
 
@@ -166,7 +198,6 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	if (path.find(".php") != std::string::npos)
 	{
 		std::string res = executeCGIScript("/usr/bin/php", path, body, filename);
-
 		return ("HTTP/1.1 200 OK\r\n\r\n" + res);
 	}
 	return "Unsupported HTTP method\n";

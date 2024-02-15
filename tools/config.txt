@@ -3,29 +3,29 @@ server {
 	listen 8181
 	host 127.0.0.1
 	server_name SimpleWebServer
-	error_page /tools/404.html
-	client_max_body_size 100000
-	web_root /Users/mmakarov/Documents/webservIntra
+	error_page 404 /404.html
+	client_max_body_size 1000000
+	web_root tools
 	index index.html
 
-	location /tools/ {
-		dir_route /Users/mmakarov/Documents/webservIntra/tools/
-		autoindex on
+	location / {
+		dir_route tools
+		autoindex off
 		allow POST
     	allow GET
     	allow DELETE
 	}
 
-	location /tools/cgi-bin/ {
+	location /cgi-bin/ {
 		default_file cgi.php
 		autoindex off
-		dir_route /Users/mmakarov/Documents/webservIntra/cgi-bin/
+		dir_route tools/cgi-bin
 		allow POST
     	allow GET
     	allow DELETE
 	}
 
-	location /tools/image-bin/ {
+	location /image-bin/ {
 		autoindex on
 	}
 
@@ -42,7 +42,7 @@ server {
 	}
 
 	location /test3 {
-		redirect /tools/image-bin
+		redirect /image-bin
 	}
 
 }

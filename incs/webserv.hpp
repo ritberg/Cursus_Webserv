@@ -31,6 +31,7 @@ class ServerSocket
 		fd_set active_sockets, ready_sockets;
     	/* char buffer[MAX_BUFFER_SIZE]; */
 		std::map<std::string, std::string> server_config;
+		std::map<std::string, std::string> server_error;
 		//std::map< int, std::pair<std::string, std::string> > server_location;
 		//int nb_locations;
 		std::vector<std::map<std::string, std::string> > server_location;
@@ -46,11 +47,12 @@ class ServerSocket
 		ServerSocket &operator=(const ServerSocket &copy);
 		~ServerSocket();
 
-
 		void Init(const std::string &configFile);
 		void Loop(bool end); //
 		void readConfigFile(const std::string &configFile);
 		void parseLocation(const std::vector<std::string>& tmpLine, int index);
+		std::string callErrorFiles(const int error);
+		std::string buildErrorFiles(const std::string error);
 		std::string getFileInfo(std::string path, int type);
 		std::string handleHttpRequest(std::string &buffer);
 		std::string handleDeleteRequest(const std::string& path);

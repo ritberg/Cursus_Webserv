@@ -51,13 +51,13 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 {
 	int index = 0;
 	int trigger;
+	int bracket_counter = 0;
 	std::ifstream file(configFile);
 	if (!file.is_open())
 	{
 		std::cerr << "Error opening configuration file" << std::endl;
 		exit(1);
 	}
-
 	std::string line;
 	while (std::getline(file, line))
 	{
@@ -69,13 +69,26 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 		{
 			if (key == "listen")
 				ports.push_back(stoi(value));
+			if (key == "error_page")
+			{
+				if (iss >> key)
+				{
+					server_error[value] = key;
+					std::cout << "server_error key: " << value << "server_error value: " << key << std::endl;
+				}
+				else
+				{
+					std::cerr << "wrong error_page format" << std::endl;
+					exit(1);
+				}
+			}
 			if (key == "location")
 			{
 				trigger = 0;
 				std::vector<std::string> tmpLine;
 				if (line.find("{") == std::string::npos)
 				{
-					std::cerr << "wrong config format" << std::endl;
+					std::cerr << "Error: wrong config format" << std::endl;
 					exit(1);
 				}
 				tmpLine.push_back(line);
@@ -83,7 +96,7 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 				{
 					if (line.find("{") != std::string::npos)
 					{
-						std::cerr << "wrong config format" << std::endl;
+						std::cerr << "Error: wrong config format" << std::endl;
 						exit(1);
 					}
 					if (line.find("}") != std::string::npos)
@@ -95,7 +108,7 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 				}
 				if (trigger == 0)
 				{
-					std::cerr << "wrong config format" << std::endl;
+					std::cerr << "Error: wrong config format" << std::endl;
 					exit(1);
 				}
 				parseLocation(tmpLine, index);
@@ -103,10 +116,16 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 			}
 			server_config[key] = value;
 		}
+		if (line.find("{") || line.find("}"))
+			bracket_counter++;
 		// std::cout << "key: " << key << " " << "value: " << value << std::endl;
 	}
+	if ((bracket_counter / 2) % 2 != 0)
+	{
+		std::cerr << "Error: wrong config format" << std::endl;
+		exit(EXIT_FAILURE);
+	}
 }
-
 void ServerSocket::Init(const std::string &configFile)
 {
 	readConfigFile(configFile);
@@ -188,10 +207,8 @@ int ServerSocket::_receive(int socket_ID, std::string & buffer)
 		if (bytesRead > 0)
 		{
 			tmpBuffer[bytesRead] = '\0';
-			buffer += tmpBuffer;
-			std::cout << "tmpBuffer " << tmpBuffer << std::endl;
-
-		}	
+			buffer += std::string(tmpBuffer, bytesRead);
+		}
 		else if (bytesRead == 0)
 		{
 			std::cout << "Connection was closed" << std::endl;
@@ -202,7 +219,8 @@ int ServerSocket::_receive(int socket_ID, std::string & buffer)
 			perror("error in read");
 			exit(10);
 		}
-	} while (bytesRead == 99);
+	} while (bytesRead > 0);
+	std::cout << "buffer " << buffer << std::endl;
 	return bytesRead;
 }
 
@@ -218,9 +236,9 @@ int ServerSocket::_respond(int socket_ID, std::string & buffer)
 void ServerSocket::Loop(bool end)
 {
 	std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
-	// size_t i = 0;
 	int ret = 0, ready = 0, new_sd;
 	bool close_connection;
+	int flag = 0;
 
 	std::string buffer;
 	ready_sockets = active_sockets;
@@ -269,7 +287,8 @@ void ServerSocket::Loop(bool end)
 					{
 						ret = _receive(socket_ID, buffer);
 						std::cout << "ret " << ret << std::endl;
-						if (ret <= 0)
+						flag++;
+						if (ret <= 0 && flag != 1)
 						{
 							close_connection = true;
 							break;
@@ -303,102 +322,6 @@ void ServerSocket::Loop(bool end)
 			close(i);
 	}
 }
-
-				// {
-				// 	while (i < server_fds.size())
-				// 	{
-				// 		if (socket_ID == server_fds[i])
-				// 		{
-				// 			std::cout << "ERROR 2, socket_ID: " << socket_ID << std::endl;
-				// 			int client_socket = accept(server_fds[i], NULL, NULL);
-				// 			std::cout << "client_sockets accepted " << client_socket << std::endl;
-				// 			if (client_socket < 0)
-				// 			{
-				// 				perror("Error accepting client connection");
-				// 				exit(1);
-				// 			}
-				// 			fcntl(client_socket, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-
-				// 			FD_SET(client_socket, &active_sockets);
-				// 			max_socket = (client_socket > max_socket) ? client_socket : max_socket;
-				// 			client_sockets.push_back(client_socket);
-				// 			break;
-				// 		}
-				// 		i++;
-				// 	}
-				// 	if (i == server_fds.size())
-				// 		i--;
-				// 	if (socket_ID != server_fds[i])
-				// 	{
-				// 		std::cout << socket_ID << std::endl;
-				// 		int bytesRead;
-				// 		char tmpBuffer[100];
-				// 		memset(tmpBuffer, 0 , sizeof(tmpBuffer));
-				// 		while ((bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, 0)) > 0)
-				// 		{
-				// 			std::string test(tmpBuffer);
-				// 			if (test.find("Content-Length: ") != std::string::npos)
-				// 			{
-				// 				std::string size;
-				// 				int p = 0;
-				// 				int pos = test.find("Content-Length: ");
-				// 				pos += 16;
-				// 				while(test[pos] != '\r')
-				// 				{
-				// 					pos++;
-				// 					p++;
-				// 				}
-				// 				size = test.substr(pos - p, p);
-				// 				std::cout << "size substracted " << size << std::endl;
-				// 				std::map<std::string, std::string>::iterator it = server_config.find("client_max_body_size");
-				// 				if (it != server_config.end())
-				// 				{
-				// 					if (stoi(size) > stoi(it->second))
-				// 					{
-				// 				 		response = "HTTP/1.1 413 Content Too Large\r\nConnection: close\r\n\r\n413 Content Too Large";
-				// 						send(socket_ID, response.c_str(), response.size(), 0);
-				// 						close(socket_ID);
-				// 						FD_CLR(socket_ID, &active_sockets);
-				// 						break;
-				// 					}
-				// 				}
-				// 			}
-				// 			test.clear();
-				// 			buffer.append(tmpBuffer, bytesRead);
-				// 			memset(tmpBuffer, 0, bytesRead);
-				// 		}
-				// 		if (bytesRead == 0)
-				// 		{
-				// 			close(socket_ID);
-				// 			FD_CLR(socket_ID, &active_sockets);
-				// 			// Remove the closed socket from clientSockets vector. Otherwise, the data is sent to a closed socket
-				// 			client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-				// 		}
-				// 		else if (bytesRead < 0 && errno != EWOULDBLOCK)
-				// 		{
-				// 			std::cout << errno << std::endl;
-				// 			perror("error in read");
-				// 			exit(1);
-				// 		}
-				// 		else
-				// 		{
-				// 			std::cout << " 3 " << std::endl;
-				// 			std::cout << std::endl << "[BUFFER]" << std::endl << buffer << std::endl;
-				// 			for (size_t i = 0; i < client_sockets.size(); i++)
-				// 			{
-				// 				std::cout << "socket_ID = " << socket_ID << std::endl;
-				// 				std::cout << "client_sockets.size() = " << client_sockets.size() << std::endl;
-				// 				std::cout << "client_sockets[i] = " << client_sockets[i] << std::endl;
-				// 				if (bytesRead <= 0)
-				// 					response = handleHttpRequest(buffer);
-				// 				send(client_sockets[i], response.c_str(), response.size(), 0);
-
-				// 			}
-				// 			client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), socket_ID), client_sockets.end());
-				// 			close(socket_ID);
-				// 			FD_CLR(socket_ID, &active_sockets);
-				// 		}
-
 
 int main(int argc, char **argv)
 {

@@ -15,7 +15,7 @@ HEADS_DIR	= ./incs/
 HEADS		= $(addprefix $(HEADS_DIR), $(HEADS_LIST))
 
 SRCS_DIR	= ./srcs/
-SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp
+SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp error.cpp
 SRCS		:= ${addprefix ${SRCS_DIR}, ${SRCS_FILES}}
 
 OBJS_DIR	= ./objs/
@@ -24,7 +24,7 @@ OBJS		:= ${addprefix ${OBJS_DIR}, ${OBJS_FILES}}
 
 #COMMANDS
 CC			= c++
-CFLAGS		= -Wall -Wextra -Werror -std=c++98 
+CFLAGS		= -Wall -Wextra -Werror -std=c++98 -g3 -fsanitize=address
 AR			= ar rcs
 MKDIR		= mkdir -p
 RM			= rm -rf
@@ -35,7 +35,7 @@ all: ${NAME}
 
 #Compile normal executable
 ${NAME}: ${OBJS_DIR} ${OBJS}
-	@${CC} ${INCS} ${OBJS} -o ${NAME}
+	@${CC} ${CFLAGS} ${INCS} ${OBJS} -o ${NAME}
 	@echo "$(GREEN)[$(BOLD)OK$(NORMAL)]$(GREEN)$(NORMAL) created and compiled object files"
 	@echo "$(GREEN)[$(BOLD)OK$(NORMAL)]$(GREEN)$(NORMAL) $(BOLD)$(NAME)$(NORMAL) is ready"
 
@@ -46,7 +46,7 @@ ${OBJS_DIR}:
 #Compile normals objects
 ${OBJS_DIR}%.o: ${SRCS_DIR}%.cpp
 	@echo "$(RED)[$(BOLD)Compiling$(NORMAL)$(RED)]$(NORMAL) $<$(UP)$(CUT)"
-	@${CC} ${INCS} -o $@ -c $<
+	@${CC} ${CFLAGS} ${INCS} -o $@ -c $<
 
 #Clean obj files
 clean:
