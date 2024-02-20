@@ -3,61 +3,19 @@
 std::string ServerSocket::getFileInfo(std::string path, int type)
 {
 	FILE * fin;
-	struct stat s;
 	std::vector<char> bufferFile;
 	std::string response;
-	std::string path_cpy;
+	std::string path_cpy = path;
 
-	path_cpy = path;
-	std::map<std::string, std::string>::iterator it = server_config.find("web_root");
-	if (it != server_config.end())
-		path = it->second + path;
-	if (stat(path.c_str(), &s) == 0)
-	{
-		if(s.st_mode & S_IFDIR)
-		{
-			if (path_cpy[path_cpy.length() - 1] != '/')
-				path_cpy.append("/");
-			for (size_t i = 0; i < server_location.size(); i++)
-			{
-	 			std::map<std::string, std::string>::iterator it = server_location[i].find("location");
-				if (it != server_location[i].end())
-				{
-					if (it->second == path_cpy)
-					{
-						it = server_location[i].find("autoindex");
-						if (it != server_location[i].end())
-						{
-							if (it->second == "on")
-							{
-								std::map<std::string, std::string>::iterator it2 = server_config.find("index");
-								if (it2 != server_config.end())
-								{
-									if (path_cpy.length() == 1)
-										path = path + it2->second;
-									else
-										path = path + "/" + it2->second;		
-								}
-								else
-								{
-									if (path_cpy.length() == 1)
-										path = path + "index.html";
-									else
-										path = path + "/index.html";
-								}
-								path_cpy = "not / anymore";
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	std::cout << std::endl << path << std::endl << std::endl;
-	//if the type is html, the file might be "", meaning it is the index
+	std::map<int, std::string> tmp = parseFileInfo(path);
+	std::map<int, std::string>::iterator it = tmp.begin();
+	int return_value = it->first;
+	if (return_value == 1)
+		return (it->second);
+	path = it->second;
 	if (type == 0 || type == -1)
 	{
-		if (path_cpy.length() == 1)
+		if (path_cpy.length() == 1 && return_value == 2)
 		{
 			path = path + "/home.html";
 			fin = fopen(path.c_str(), "rb");
@@ -70,12 +28,18 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	if (fin == NULL)
 	{
 		//if the file doesn't exist, a special file is made to display error 404
-		if (type == -1)
-			return (buildErrorFiles("404 Not Found"));
-		if (type == 0)
-			return (callErrorFiles(404));
-		else
-			return ("HTTP/1.1 404 Not Found\r\n\r\n");
+		std::map<std::string, std::string>::iterator it = server_error.find(std::to_string(404));
+		if (it != server_error.end())
+		{
+			std::string tmp = it->second;
+			std::map<std::string, std::string>::iterator it2 = server_config.find("web_root");
+			if (it2 != server_config.end())
+				tmp = it2->second + it->second;
+			fin = fopen(tmp.c_str(), "rb");
+			if (fin == NULL)
+				return (buildErrorFiles("404 Not Found"));
+		}
+		return (callErrorFiles(404));
 	}
 	//here we calculate the size of the file
 	fseek(fin, 0, SEEK_END);
@@ -87,7 +51,6 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	fread(&bufferFile[0], 1, file_len, fin);
 	fclose(fin);
 	std::string content(bufferFile.begin(), bufferFile.end());
-	//std::string content_len = std::to_string((content.length() + 20));
 	//assembly of the response
 	response = "HTTP/1.1 200 OK\r\n\r\n" + content;
 	return (response);
@@ -97,29 +60,8 @@ std::string ServerSocket::handleGetRequest(const std::string &path, const std::s
 {
 	std::string response;
 
-	for (size_t i = 0; i < server_location.size(); i++)
-	{
-	 	std::map<std::string, std::string>::iterator it = server_location[i].find("location");
-		if (it != server_location[i].end())
-		{
-			if (it->second == path)
-			{
-				it = server_location[i].find("redirect");
-				if (it != server_location[i].end())
-				{
-					response = "HTTP/1.1 302 Found\r\nLocation: " + it->second + "\r\n\r\n";
-					return (response);
-				}
-			}
-		}
-	}
 	if (path.find(".php") != std::string::npos)
-	{
-		std::ostringstream oss;
-		oss << "HTTP/1.1 200 OK\r\n\r\n";
-		// Use CGI script for GET request, just to display the web page
-		return oss.str() + executeCGIScript("/usr/bin/php", path, "", "");
-	}
+		return executeCGIScript("/usr/bin/php", path, "", "");
 	else if (buffer.find("Accept: text/html") != std::string::npos)
 		response = getFileInfo(path, 0);
 	else
@@ -149,6 +91,17 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 		if (len > stoi(it->second))
 			return (callErrorFiles(413));
 	}
+	int test;
+	if (buffer.find("Content-Length: ") == std::string::npos)
+		return(callErrorFiles(411));
+	// if (test != std::string::npos)
+	// {
+		test = buffer.find("Content-Length: ");
+		std::string stringtest = buffer.substr(test + 16, 1);
+		std::cout << "stringtest= " << stringtest << std::endl;
+	//}
+		if (stoi(stringtest) == 0)
+			return (callErrorFiles(400));
 
 	size_t pos_marker = buffer.find("boundary=");
 	if (pos_marker == std::string::npos)
@@ -196,10 +149,7 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 		return handleGetRequest(path, buffer) + "\nSuccessfully uploaded!<br>";
 	}
 	if (path.find(".php") != std::string::npos)
-	{
-		std::string res = executeCGIScript("/usr/bin/php", path, body, filename);
-		return ("HTTP/1.1 200 OK\r\n\r\n" + res);
-	}
+		return(executeCGIScript("/usr/bin/php", path, body, filename));
 	return "Unsupported HTTP method\n";
 }
 
@@ -219,14 +169,16 @@ std::string ServerSocket::handleDeleteRequest(const std::string& path)
 std::string ServerSocket::handleHttpRequest(std::string &buffer)
 {
 	std::istringstream request(buffer);
-	std::string method, path, line;
-	request >> method >> path;
+	std::string method, path, line, protocol;
+	request >> method >> path >> protocol;
 
+	if (protocol != "HTTP/1.1")
+		return (callErrorFiles(505));
 	if (method == "GET")
 		return handleGetRequest(path, buffer);
 	else if (method == "POST")
 		return handlePostRequest(path, buffer);
 	else if (method == "DELETE")
 		return handleDeleteRequest(path);
-	return "Unsupported HTTP method";
+	return (callErrorFiles(501));
 }

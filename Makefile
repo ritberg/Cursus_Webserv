@@ -15,7 +15,7 @@ HEADS_DIR	= ./incs/
 HEADS		= $(addprefix $(HEADS_DIR), $(HEADS_LIST))
 
 SRCS_DIR	= ./srcs/
-SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp error.cpp
+SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp error.cpp parsing.cpp
 SRCS		:= ${addprefix ${SRCS_DIR}, ${SRCS_FILES}}
 
 OBJS_DIR	= ./objs/

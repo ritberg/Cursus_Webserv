@@ -1,0 +1,37 @@
+server {
+	listen 8080
+	host 127.0.0.1
+	server_name SimpleWebServer
+	error_page 404 /error/404.html
+	client_max_body_size 100000
+	web_root tools
+	index index.html
+
+	location /tools/ {
+		dir_route /Users/mmakarov/Documents/webservIntra/tools/
+		autoindex off
+		max_route_body_size 1000000
+		allow POST
+    	allow GET
+    	allow DELETE
+	}
+}
+
+server {
+	listen 8081
+	host 127.0.0.1
+	server_name SimpleWebServer2
+	error_page 404 /error/404.html
+	client_max_body_size 100000
+	web_root tools
+	index index.html
+
+	location /tools/ {
+		dir_route /Users/mmakarov/Documents/webservIntra/tools/
+		autoindex on
+		max_route_body_size 1000000
+		allow POST
+    	allow GET
+    	allow DELETE
+	}
+}

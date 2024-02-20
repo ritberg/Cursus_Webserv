@@ -25,107 +25,6 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 
 ServerSocket::~ServerSocket() {}
 
-void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int index)
-{
-	std::map<std::string, std::string> tmp;
-	for (size_t i = 0; i < tmpLine.size(); i++)
-	{
-		std::string toRead = tmpLine[i];
-		std::istringstream iss(toRead);
-		std::string key, value;
-		if (iss >> key >> value)
-		{
-			if (key == "}")
-				break;
-			tmp[key] = value;
-		}
-		std::cout << "index: " << index << " "
-				  << "key: " << key << " "
-				  << "value: " << value << std::endl;
-	}
-	server_location.push_back(tmp);
-	// nb_locations = index + 1; // how many locations in config file
-}
-
-void ServerSocket::readConfigFile(const std::string &configFile)
-{
-	int index = 0;
-	int trigger;
-	int bracket_counter = 0;
-	std::ifstream file(configFile);
-	if (!file.is_open())
-	{
-		std::cerr << "Error opening configuration file" << std::endl;
-		exit(1);
-	}
-	std::string line;
-	while (std::getline(file, line))
-	{
-		std::istringstream iss(line);
-		std::string key, value;
-		if (line.find("server") == 0)
-			continue;
-		if (iss >> key >> value)
-		{
-			if (key == "listen")
-				ports.push_back(stoi(value));
-			if (key == "error_page")
-			{
-				if (iss >> key)
-				{
-					server_error[value] = key;
-					std::cout << "server_error key: " << value << "server_error value: " << key << std::endl;
-				}
-				else
-				{
-					std::cerr << "wrong error_page format" << std::endl;
-					exit(1);
-				}
-			}
-			if (key == "location")
-			{
-				trigger = 0;
-				std::vector<std::string> tmpLine;
-				if (line.find("{") == std::string::npos)
-				{
-					std::cerr << "Error: wrong config format" << std::endl;
-					exit(1);
-				}
-				tmpLine.push_back(line);
-				while (std::getline(file, line))
-				{
-					if (line.find("{") != std::string::npos)
-					{
-						std::cerr << "Error: wrong config format" << std::endl;
-						exit(1);
-					}
-					if (line.find("}") != std::string::npos)
-					{
-						trigger = 1;
-						break;
-					}
-					tmpLine.push_back(line);
-				}
-				if (trigger == 0)
-				{
-					std::cerr << "Error: wrong config format" << std::endl;
-					exit(1);
-				}
-				parseLocation(tmpLine, index);
-				index++;
-			}
-			server_config[key] = value;
-		}
-		if (line.find("{") || line.find("}"))
-			bracket_counter++;
-		// std::cout << "key: " << key << " " << "value: " << value << std::endl;
-	}
-	if ((bracket_counter / 2) % 2 != 0)
-	{
-		std::cerr << "Error: wrong config format" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-}
 void ServerSocket::Init(const std::string &configFile)
 {
 	readConfigFile(configFile);
@@ -214,11 +113,11 @@ int ServerSocket::_receive(int socket_ID, std::string & buffer)
 			std::cout << "Connection was closed" << std::endl;
 			return 0;
 		}
-		else if (bytesRead < 0 && errno != EWOULDBLOCK) // pas droit a l'errno !
-		{
-			perror("error in read");
-			exit(10);
-		}
+		// else if (bytesRead < 0 && errno != EWOULDBLOCK) // pas droit a l'errno !
+		// {
+		// 	perror("error in read");
+		// 	exit(10);
+		// }
 	} while (bytesRead > 0);
 	std::cout << "buffer " << buffer << std::endl;
 	return bytesRead;
@@ -228,24 +127,30 @@ int ServerSocket::_respond(int socket_ID, std::string & buffer)
 {
 	int ret;
 	std::string response;
-	response = handleHttpRequest(buffer);
+	if (buffer.length() == 0)
+		response = callErrorFiles(400);
+	else
+		response = handleHttpRequest(buffer);
 	ret = send(socket_ID, response.c_str(), response.size(), 0);
 	return ret;
 }
 
 void ServerSocket::Loop(bool end)
 {
-	std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
+	//std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
 	int ret = 0, ready = 0, new_sd;
 	bool close_connection;
 	int flag = 0;
+	struct timeval tv;
+	tv.tv_sec = 2;
+	tv.tv_usec = 0;
 
 	std::string buffer;
 	ready_sockets = active_sockets;
 	while(!end)
 	{
 		memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
-		ret = select(max_socket + 1, &ready_sockets, NULL, NULL, NULL);
+		ret = select(max_socket + 1, &ready_sockets, NULL, NULL, &tv);
 		if (ret == -1)
 		{
 			std::cerr << "Error in select(): " << strerror(errno) << std::endl;
@@ -341,7 +246,7 @@ int main(int argc, char **argv)
 	else if (argc == 1)
 	{
 		ServerSocket ss;
-		ss.Init("tools/config.txt");
+		ss.Init("tools/conf/config.txt");
 	}
 	else
 		std::cout << "Wrong number of arguments" << std::endl;

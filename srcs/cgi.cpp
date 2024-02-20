@@ -11,6 +11,7 @@ void mfree(char **f)
 
 std::string ServerSocket::executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename)
 {
+	std::string response_data;
 	std::cout << shebang << "|" << cgiScriptPath << "|" << body <<  "|" << filename << std::endl;
 	int stdin_pipe[2];
 	int stdout_pipe[2];
@@ -73,8 +74,8 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 		char buffer[1024];
 		memset(buffer, 0, sizeof(buffer));
 
-		std::string response_data;
 		response_data.clear();
+		response_data.append("HTTP/1.1 200 OK\r\n\r\n");
 
 		int bytes_read;
 		while ((bytes_read = read(stdout_pipe[0], buffer, sizeof(buffer) - 1)) > 0)
@@ -92,8 +93,13 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 		waitpid(pid, &status, 0);
 		mfree(argv);
 		mfree(envp);
-		std::cout << "response_data " << response_data << std::endl;
-
-		return response_data;
+		status = status / 256;
+		std::cout << "status = " << status << std::endl;
+		if (status == 1)
+			return (callErrorFiles(404));
+		if (status == 255)
+			return (callErrorFiles(418));
+		//std::cout << "response_data " << response_data << std::endl;
 	}
+	return response_data;
 }

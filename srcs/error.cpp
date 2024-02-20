@@ -12,13 +12,14 @@ std::string ServerSocket::buildErrorFiles(const std::string error)
 std::string ServerSocket::callErrorFiles(const int error)
 {
     std::map<std::string, std::string>::iterator it = server_error.find(std::to_string(error));
+    // if (it != server_error.end())
+    // {
+    //     if (error == 404)
+    //         return (getFileInfo(it->second, -1));
+    //     return (getFileInfo(it->second, 0));
+    // }
     if (it != server_error.end())
-    {
-        if (error == 404)
-            return (getFileInfo(it->second, -1));
-        return (getFileInfo(it->second, 0));
-    }
-
+        return ("HTTP/1.1 302 Found\r\nLocation: " + it->second + "\r\n\r\n");
     switch(error)
     {
         case 400:
