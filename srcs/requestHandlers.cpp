@@ -6,9 +6,11 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	std::vector<char> bufferFile;
 	std::string response;
 	std::string path_cpy = path;
+	int trigger = 0;
 
 	std::map<int, std::string> tmp = parseFileInfo(path);
-	std::map<int, std::string>::iterator it = tmp.begin();
+	std::map<int, std::string>::iterator it;
+	it = tmp.begin();
 	int return_value = it->first;
 	if (return_value == 1)
 		return (it->second);
@@ -17,7 +19,25 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	{
 		if (path_cpy.length() == 1 && return_value == 2)
 		{
-			path = path + "/home.html";
+			for (int i = 0; i < currentServ.getLocationSize(); i++)
+			{
+				std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
+				if (it != currentServ.getLocationEnd(i))
+				{
+					if (it->second == "/")
+					{
+						std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "default_file");
+						if (it != currentServ.getLocationEnd(i))
+						{
+							path = path + "/" + it->second;
+							trigger = 1;
+						}
+					}
+				}
+			}
+			if (trigger == 0)
+				path = path + "/index.html";
+			std::cout << "PATH = " << path << std::endl;
 			fin = fopen(path.c_str(), "rb");
 		}
 		else
@@ -28,12 +48,14 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	if (fin == NULL)
 	{
 		//if the file doesn't exist, a special file is made to display error 404
-		std::map<std::string, std::string>::iterator it = server_error.find(std::to_string(404));
-		if (it != server_error.end())
+		std::map<std::string, std::string>::iterator it;
+		it = currentServ.getServError(std::to_string(404));
+		if (it != currentServ.getErrorEnd())
 		{
 			std::string tmp = it->second;
-			std::map<std::string, std::string>::iterator it2 = server_config.find("web_root");
-			if (it2 != server_config.end())
+			std::map<std::string, std::string>::iterator it2;
+			it2 = currentServ.getServConf("web_root");
+			if (it2 != currentServ.getConfEnd())
 				tmp = it2->second + it->second;
 			fin = fopen(tmp.c_str(), "rb");
 			if (fin == NULL)
@@ -84,8 +106,9 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	std::string body;
 	std::string boundary;
 
-	std::map<std::string, std::string>::iterator it = server_config.find("client_max_body_size");
-	if (it != server_config.end())
+	std::map<std::string, std::string>::iterator it;
+	it = currentServ.getServConf("client_max_body_size");
+	if (it != currentServ.getConfEnd())
 	{
 		int len = buffer.length();
 		if (len > stoi(it->second))
@@ -94,14 +117,10 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	int test;
 	if (buffer.find("Content-Length: ") == std::string::npos)
 		return(callErrorFiles(411));
-	// if (test != std::string::npos)
-	// {
-		test = buffer.find("Content-Length: ");
-		std::string stringtest = buffer.substr(test + 16, 1);
-		std::cout << "stringtest= " << stringtest << std::endl;
-	//}
-		if (stoi(stringtest) == 0)
-			return (callErrorFiles(400));
+	test = buffer.find("Content-Length: ");
+	std::string stringtest = buffer.substr(test + 16, 1);
+	if (stoi(stringtest) == 0)
+		return (callErrorFiles(400));
 
 	size_t pos_marker = buffer.find("boundary=");
 	if (pos_marker == std::string::npos)
@@ -114,7 +133,6 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 			std::istringstream body_stream(body);
 			std::getline(body_stream, extracted_line);
 
-			std::cout << "hello " << extracted_line << std::endl;
 		}
 		return ("HTTP/1.1 200 OK\r\n\r\n" + extracted_line);
 	}
@@ -142,7 +160,6 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 		std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
 		if (outfile.fail())
 			return "No file was chosen";
-		std::cout << "body " << body << std::endl;
 		outfile << body; // Put the body of the uploaded file into the folder
 		outfile.close();
 
@@ -169,9 +186,41 @@ std::string ServerSocket::handleDeleteRequest(const std::string& path)
 std::string ServerSocket::handleHttpRequest(std::string &buffer)
 {
 	std::istringstream request(buffer);
-	std::string method, path, line, protocol;
+	std::string method, path, line, protocol, path_cpy;
 	request >> method >> path >> protocol;
+	int trigger = 0;
+	int trigger2 = 0;
+	path_cpy = path;
 
+	while (trigger2 == 0)
+	{
+		for (int i = 0; i < currentServ.getLocationSize(); i++)
+		{
+			std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
+			if (!((it->second.substr(0, it->second.rfind("/")) + "/").compare(path_cpy.substr(0, path_cpy.rfind("/")) + "/")))
+			{
+				trigger2 = 1;
+				for (it = currentServ.getLocationBegin(i); it != currentServ.getLocationEnd(i); it++)
+				{
+					if (it->second == "allow" && it->first == method)
+						trigger = 1;
+				}
+			}
+		}
+		if (path_cpy.length() == 1)
+			break;
+		if (trigger == 0)
+		{
+			int pos = path_cpy.length();
+			pos--;
+			while (path_cpy[pos] != '/')
+				pos--;
+			path_cpy = path_cpy.substr(0, pos);
+		}
+	}
+
+	if (trigger != 1)
+		return (callErrorFiles(405));
 	if (protocol != "HTTP/1.1")
 		return (callErrorFiles(505));
 	if (method == "GET")

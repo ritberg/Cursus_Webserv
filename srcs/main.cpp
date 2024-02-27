@@ -18,67 +18,105 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 	// client_sockets = copy.client_sockets;
 	active_sockets = copy.active_sockets;
 	ready_sockets = copy.ready_sockets;
-	server_config = copy.server_config;
+	// server_config = copy.server_config;
 
 	return (*this);
 }
 
-ServerSocket::~ServerSocket() {}
+ServerSocket::~ServerSocket()
+{
+	delete[] server;
+	std::cout << "memory was freed" << std::endl;
+}
 
 void ServerSocket::Init(const std::string &configFile)
 {
+	std::ifstream file(configFile);
+	if (!file.is_open())
+	{
+		std::cerr << "Error opening configuration file" << std::endl;
+		exit(1);
+	}
+	if (file.peek() == EOF)
+	{
+		std::cout << "Error: configuration file empty" << std::endl;
+		exit(1);
+	}
+	std::string line;
+	servSize = 0;
+	while (std::getline(file, line))
+	{
+		if (line.find("server") != std::string::npos && line.find("{") != std::string::npos)
+			servSize++;
+	}
+	file.close();
+	this->server = new servers[servSize];
+
 	readConfigFile(configFile);
 
-	FD_ZERO(&active_sockets);
-
-	for (size_t i = 0; i < ports.size(); ++i)
+	for (int j = 0; j < servSize; ++j)
 	{
-		int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-		if (server_fd < 0)
+		if (server[j].getPorts().size() == 0)
 		{
-			perror("In socket");
-			exit(EXIT_FAILURE);
+			std::cerr << "Error: no ports found" << std::endl;
+			exit(1);
 		}
+	}
 
-		int opt = 1;
-		if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+	FD_ZERO(&active_sockets);
+	for (int j = 0; j < servSize; ++j)
+	{
+		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
 		{
-			perror("In setsockopt");
-			exit(EXIT_FAILURE);
+			int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+			if (server_fd < 0)
+			{
+				perror("In socket");
+				exit(EXIT_FAILURE);
+			}
+
+			int opt = 1;
+			if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+			{
+				perror("In setsockopt");
+				exit(EXIT_FAILURE);
+			}
+
+			fcntl(server_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
+
+			struct sockaddr_in server_addr;
+			memset(&server_addr, 0, sizeof(server_addr));
+			server_addr.sin_family = AF_INET;
+			server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+			server_addr.sin_port = htons(server[j].getPorts()[i]);
+
+			if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+			{
+				perror("In bind");
+				close(server_fd);
+				exit(EXIT_FAILURE);
+			}
+
+			if (listen(server_fd, MAX_CLIENTS) < 0)
+			{
+				perror("In listen");
+				close(server_fd);
+				exit(EXIT_FAILURE);
+			}
+
+			FD_SET(server_fd, &active_sockets);
+			server_fds.push_back(server_fd);
+			max_socket = std::max(max_socket, server_fd);
 		}
-
-		fcntl(server_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-
-		struct sockaddr_in server_addr;
-		memset(&server_addr, 0, sizeof(server_addr));
-		server_addr.sin_family = AF_INET;
-		server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-		server_addr.sin_port = htons(ports[i]);
-
-		if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-		{
-			perror("In bind");
-			close(server_fd);
-			exit(EXIT_FAILURE);
-		}
-
-		if (listen(server_fd, MAX_CLIENTS) < 0)
-		{
-			perror("In listen");
-			close(server_fd);
-			exit(EXIT_FAILURE);
-		}
-
-		FD_SET(server_fd, &active_sockets);
-		server_fds.push_back(server_fd);
-		max_socket = std::max(max_socket, server_fd);
 	}
 
 	std::cout << "----Awaiting connections on port(s): ";
-	for (size_t i = 0; i < ports.size(); ++i)
-		std::cout << ports[i] << " ";
-	std::cout << "----" << std::endl
-			  << std::endl;
+	for (int j = 0; j < servSize; ++j)
+	{
+		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
+			std::cout << server[j].getPorts()[i] << " ";
+	}
+	std::cout << "----" << std::endl << std::endl;
 
 	bool end = false;
 	while (1)
@@ -87,7 +125,8 @@ void ServerSocket::Init(const std::string &configFile)
 
 bool ServerSocket::_check(int socket_ID)
 {
-	for (std::vector<int>::iterator it = server_fds.begin(); it != server_fds.end(); ++it)
+	std::vector<int>::iterator it;
+	for (it = server_fds.begin(); it != server_fds.end(); ++it)
 	{
 		if (socket_ID == *it)
 			return true;
@@ -95,13 +134,14 @@ bool ServerSocket::_check(int socket_ID)
 	return false;
 }
 
-int ServerSocket::_receive(int socket_ID, std::string & buffer)
+int ServerSocket::_receive(int socket_ID, std::string &buffer)
 {
 	buffer.clear();
 	int bytesRead;
 	char tmpBuffer[100];
 	memset(tmpBuffer, 0, sizeof(tmpBuffer));
-	do {
+	do
+	{
 		bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, MSG_DONTWAIT);
 		if (bytesRead > 0)
 		{
@@ -113,31 +153,59 @@ int ServerSocket::_receive(int socket_ID, std::string & buffer)
 			std::cout << "Connection was closed" << std::endl;
 			return 0;
 		}
-		// else if (bytesRead < 0 && errno != EWOULDBLOCK) // pas droit a l'errno !
-		// {
-		// 	perror("error in read");
-		// 	exit(10);
-		// }
+		else
+			return -1;
 	} while (bytesRead > 0);
 	std::cout << "buffer " << buffer << std::endl;
 	return bytesRead;
 }
 
-int ServerSocket::_respond(int socket_ID, std::string & buffer)
+int ServerSocket::_respond(int socket_ID, std::string &buffer)
 {
-	int ret;
-	std::string response;
-	if (buffer.length() == 0)
-		response = callErrorFiles(400);
-	else
-		response = handleHttpRequest(buffer);
-	ret = send(socket_ID, response.c_str(), response.size(), 0);
-	return ret;
+    // std::cout << "buffer " << buffer << std::endl;
+    std::cout << "length " << buffer.length() << std::endl;
+    int ret;
+    std::string response;
+    std::string host;
+    size_t pos = buffer.find("Host: ");
+    if (pos != std::string::npos)
+    {
+        pos += 6;
+        std::cout << "host = " << buffer[pos] << std::endl;
+        while (buffer[pos] != ':')
+            pos++;
+        pos++;
+        int limit = pos;;
+        while (buffer[limit] != '\r')
+            limit++;
+        limit -= pos;
+        std::cout << "limit = " << limit << std::endl;
+        host = buffer.substr(pos, limit);
+    }
+    if (host.empty())
+        return -1;
+    std::cout << "host = " << host << std::endl;
+    for (int j = 0; j < servSize; ++j)
+    {
+        for (size_t i = 0; i < server[j].getPorts().size(); ++i)
+        {
+            if (server[j].getPorts()[i] == stod(host))
+            {
+                currentServ = server[j];
+                break;
+            }
+        }
+    }
+    if (buffer.length() == 0)
+        response = callErrorFiles(400);
+    else
+        response = handleHttpRequest(buffer);
+    ret = send(socket_ID, response.c_str(), response.size(), 0);
+    return ret;
 }
 
 void ServerSocket::Loop(bool end)
 {
-	//std::cout << "server fds= " << server_fds[0] << ", " << server_fds[1] << std::endl;
 	int ret = 0, ready = 0, new_sd;
 	bool close_connection;
 	int flag = 0;
@@ -147,7 +215,7 @@ void ServerSocket::Loop(bool end)
 
 	std::string buffer;
 	ready_sockets = active_sockets;
-	while(!end)
+	while (!end)
 	{
 		memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
 		ret = select(max_socket + 1, &ready_sockets, NULL, NULL, &tv);
@@ -158,7 +226,8 @@ void ServerSocket::Loop(bool end)
 		}
 		ready = ret;
 		std::cout << "max_socket début " << max_socket << std::endl;
-		std::cout << std::endl << "==== WAITING ====" << std::endl;
+		std::cout << std::endl
+				  << "==== WAITING ====" << std::endl;
 		for (int socket_ID = 0; socket_ID <= max_socket && ready > 0; socket_ID++)
 		{
 			if (FD_ISSET(socket_ID, &ready_sockets))
@@ -173,8 +242,8 @@ void ServerSocket::Loop(bool end)
 						{
 							if (errno != EWOULDBLOCK)
 							{
-									std::cerr << "Error accepting client connection" << std::endl;
-									end = true;
+								std::cerr << "Error accepting client connection" << std::endl;
+								end = true;
 							}
 							break;
 						}

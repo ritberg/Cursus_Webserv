@@ -11,14 +11,8 @@ std::string ServerSocket::buildErrorFiles(const std::string error)
 
 std::string ServerSocket::callErrorFiles(const int error)
 {
-    std::map<std::string, std::string>::iterator it = server_error.find(std::to_string(error));
-    // if (it != server_error.end())
-    // {
-    //     if (error == 404)
-    //         return (getFileInfo(it->second, -1));
-    //     return (getFileInfo(it->second, 0));
-    // }
-    if (it != server_error.end())
+    std::map<std::string, std::string>::iterator it = currentServ.getServError(std::to_string(error));
+    if (it != currentServ.getErrorEnd())
         return ("HTTP/1.1 302 Found\r\nLocation: " + it->second + "\r\n\r\n");
     switch(error)
     {
@@ -104,7 +98,7 @@ std::string ServerSocket::callErrorFiles(const int error)
             return (buildErrorFiles("511 Network Authentication Required"));
         default:
         {
-            std::cerr << "unsupported error" << std::endl;
+            std::cerr << "Error: unsupported error" << std::endl;
             exit(1);
         }
 

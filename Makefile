@@ -10,12 +10,12 @@ CUT 		= \033[K
 NAME		= webserv
 
 #FILES
-HEADS_LIST	= webserv.hpp
+HEADS_LIST	= webserv.hpp servers.hpp
 HEADS_DIR	= ./incs/
 HEADS		= $(addprefix $(HEADS_DIR), $(HEADS_LIST))
 
 SRCS_DIR	= ./srcs/
-SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp error.cpp parsing.cpp
+SRCS_FILES	= main.cpp requestHandlers.cpp cgi.cpp error.cpp parsing.cpp servers.cpp
 SRCS		:= ${addprefix ${SRCS_DIR}, ${SRCS_FILES}}
 
 OBJS_DIR	= ./objs/

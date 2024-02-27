@@ -3,17 +3,28 @@ server {
 	host 127.0.0.1
 	server_name SimpleWebServer
 	error_page 404 /error/404.html
-	client_max_body_size 100000
+	client_max_body_size 100000000
 	web_root tools
 	index index.html
 
-	location /tools/ {
-		dir_route /Users/mmakarov/Documents/webservIntra/tools/
+	location / {
+		default_file home.html
 		autoindex off
-		max_route_body_size 1000000
-		allow POST
     	allow GET
-    	allow DELETE
+		allow POST
+		allow DELETE
+	}
+
+	location /image-bin/ {
+		autoindex on
+		allow GET
+		allow POST
+		allow DELETE
+	}
+
+	location /conf/ {
+		deny all
+		return 418
 	}
 }
 
@@ -26,10 +37,9 @@ server {
 	web_root tools
 	index index.html
 
-	location /tools/ {
-		dir_route /Users/mmakarov/Documents/webservIntra/tools/
-		autoindex on
-		max_route_body_size 1000000
+	location / {
+		default_file home.html
+		autoindex off
 		allow POST
     	allow GET
     	allow DELETE

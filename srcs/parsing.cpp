@@ -1,21 +1,40 @@
 #include "webserv.hpp"
 
+bool checkValue(const std::string value)
+{
+	try{
+		if (value.find_first_not_of("0123456789") != std::string::npos)
+		{
+			std::cerr << "Error: wrong characters in config detected" << std::endl;
+			exit(1);
+		}
+		stod(value);
+		return true;
+	}
+	catch(const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+		exit(1);
+    }
+	return false;
+}
+
 std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 {
 	struct stat s;
 	std::string path_cpy;
 	std::string tmp;
 	std::map<int, std::string> response;
+	std::map<std::string, std::string>::iterator it;
 
-	for (size_t k = 0; k < server_location.size(); k++)
+	for (int k = 0; k < currentServ.getLocationSize(); k++)
 	{
-	 	std::map<std::string, std::string>::iterator it = server_location[k].find("location");
-		if (it != server_location[k].end())
+	 	it = currentServ.getServLocation(k, "location");
+		if (it != currentServ.getLocationEnd(k))
 		{
 			if (it->second == path)
 			{
-				it = server_location[k].find("redirect");
-				if (it != server_location[k].end())
+				it = currentServ.getServLocation(k, "redirect");
+				if (it != currentServ.getLocationEnd(k))
 				{
 					response[1] = "HTTP/1.1 302 Found\r\nLocation: " + it->second + "\r\n\r\n";
 					return (response);
@@ -26,33 +45,30 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	path_cpy = path;
 	if (path_cpy[path_cpy.length() - 1] != '/')
 		path_cpy.append("/");
-	std::map<std::string, std::string>::iterator it = server_config.find("web_root");
-	if (it != server_config.end())
+	it = currentServ.getServConf("web_root");
+	if (it != currentServ.getConfEnd())
 		path = it->second + path;
 	if (path_cpy.length() == 1)
 		tmp = "/";
 	else
 		tmp = path_cpy.substr(0, path_cpy.find_first_of("/", 1) + 1);
-	for (size_t j = 0; j < server_location.size(); j++)
+	for (int j = 0; j < currentServ.getLocationSize(); j++)
 	{
-	 	it = server_location[j].find("location");
-		if (it != server_location[j].end())
+	 	it = currentServ.getServLocation(j, "location");
+		if (it != currentServ.getLocationEnd(j))
 		{
 			if (tmp == it->second)
 			{
-				it = server_location[j].find("deny");
-				if (it != server_location[j].end())
+				it = currentServ.getServLocation(j, "deny");
+				if (it != currentServ.getLocationEnd(j))
 				{
 					if (it->second == "all")
 					{
-						it = server_location[j].find("return");
-						if (it != server_location[j].end())
+						it = currentServ.getServLocation(j, "return");
+						if (it != currentServ.getLocationEnd(j))
 						{
-							if (it->second.find_first_not_of("0123456789") == std::string::npos)
-							{
-								response[1] = callErrorFiles(stoi(it->second));
-								return (response);
-							}
+							response[1] = callErrorFiles(stoi(it->second));
+							return (response);
 						}
 					}
 				}
@@ -63,25 +79,25 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	{
 		if(s.st_mode & S_IFDIR)
 		{
-			for (size_t i = 0; i < server_location.size(); i++)
+			for (int i = 0; i < currentServ.getLocationSize(); i++)
 			{
-	 			it = server_location[i].find("location");
-				if (it != server_location[i].end())
+	 			it = currentServ.getServLocation(i, "location");
+				if (it != currentServ.getLocationEnd(i))
 				{
 					if (it->second == path_cpy)
 					{
-						it = server_location[i].find("autoindex");
-						if (it != server_location[i].end())
+						it = currentServ.getServLocation(i, "autoindex");
+						if (it != currentServ.getLocationEnd(i))
 						{
 							if (it->second == "on")
 							{
-								std::map<std::string, std::string>::iterator it2 = server_config.find("index");
-								if (it2 != server_config.end())
+								std::map<std::string, std::string>::const_iterator it = currentServ.getServConf("index");
+								if (it != currentServ.getConfEnd())
 								{
 									if (path_cpy.length() == 1)
-										path = path + it2->second;
+										path = path + it->second;
 									else
-										path = path + "/" + it2->second;		
+										path = path + "/" + it->second;		
 								}
 								else
 								{
@@ -105,7 +121,7 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	return(response);
 }
 
-void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int index)
+void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int index, int ind_serv)
 {
 	std::map<std::string, std::string> tmp;
 	for (size_t i = 0; i < tmpLine.size(); i++)
@@ -117,9 +133,20 @@ void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int in
 		{
 			if (iss >> value)
 			{
+				if (key == "return")
+				{
+					if (!checkValue(value))
+					{
+						std::cerr << "Error: wrong config format - code error" << std::endl;
+						exit(1);
+					}
+				}
 				if (key == "}")
 					break;
-				tmp[key] = value;
+				if (key == "allow")
+					tmp[value] = key;
+				else
+					tmp[key] = value;
 			}
 			else
 			{
@@ -141,13 +168,16 @@ void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int in
 				  << "key: " << key << " "
 				  << "value: " << value << std::endl;
 	}
-	server_location.push_back(tmp);
+	server[ind_serv].setServLocation(tmp);
 	// nb_locations = index + 1; // how many locations in config file
 }
 
 void ServerSocket::readConfigFile(const std::string &configFile)
 {
 	int index = 0;
+	int ind_serv = -1;
+	servers tmp;
+	int inside = 0;
 	int trigger;
 	int bracket_counter = 0;
 	std::ifstream file(configFile);
@@ -168,6 +198,13 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 		std::string key, value;
 		if (line.find("server") == 0)
 		{
+			if (inside == 1)
+			{
+				std::cerr << "Error: wrong config format" << std::endl;
+				exit(1);
+			}
+			inside = 1;
+			ind_serv++;
 			if (line.find("{") != std::string::npos)
 				bracket_counter++;
 			else
@@ -180,11 +217,29 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 		if (iss >> key)
 		{
 			if (key == "}")
-				;
+			{
+				inside = 0;
+			}
 			else if (key == "listen")
 			{
+				if (inside == 0)
+				{
+					std::cerr << "Error: wrong config format" << std::endl;
+					exit(1);
+				}
 				if (iss >> value)
-					ports.push_back(stoi(value));
+				{
+					if (checkValue(value))
+					{
+						if (stod(value) >= 1024 && stod(value) <= 65535)
+							server[ind_serv].setPorts(stod(value));
+						else
+						{
+							std::cerr << "Error in ports config" << std::endl;
+							exit(1);
+						}
+					}
+				}
 				else
 				{
 					std::cerr << "Error in ports config" << std::endl;
@@ -198,11 +253,21 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 			}
 			else if (key == "error_page")
 			{
+				if (inside == 0)
+				{
+					std::cerr << "Error: wrong config format" << std::endl;
+					exit(1);
+				}
 				if (iss >> key)
 				{
 					if (iss >> value)
 					{
-						server_error[key] = value;
+						if (!checkValue(key))
+						{
+							std::cerr << "Error: wrong config format" << std::endl;
+							exit(1);
+						}
+						server[ind_serv].setServError(key, value);
 						std::cout << "server_error key: " << value << "server_error value: " << key << std::endl;
 					}
 					else
@@ -224,6 +289,11 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 			}
 			else if (key == "location")
 			{
+				if (inside == 0)
+				{
+					std::cerr << "Error: wrong config format" << std::endl;
+					exit(1);
+				}
 				trigger = 0;
 				std::vector<std::string> tmpLine;
 				if (line.find("{") == std::string::npos)
@@ -252,17 +322,30 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 					std::cerr << "Error: wrong config format" << std::endl;
 					exit(1);
 				}
-				parseLocation(tmpLine, index);
+				parseLocation(tmpLine, index, ind_serv);
 				index++;
 			}
 			else
 			{
+				if (inside == 0)
+				{
+					std::cerr << "Error: wrong config format" << std::endl;
+					exit(1);
+				}
 				if (iss >> value)
-					server_config[key] = value;
+					server[ind_serv].setServConf(key, value);
 				else
 				{
 					std::cerr << "Error: wrong config format" << std::endl;
 					exit(1);
+				}
+				if (key == "client_max_body_size")
+				{
+					if (!checkValue(value))
+					{
+						std::cerr << "Error: wrong config format" << std::endl;
+						exit(1);
+					}
 				}
 				if (iss >> value)
 				{
@@ -271,15 +354,13 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 				}
 			}
 		}
-		std::cout << line << std::endl;
 		if (line.find("{") != std::string::npos || line.find("}") != std::string::npos)
 			bracket_counter++;
-		// std::cout << "key: " << key << " " << "value: " << value << std::endl;
 	}
-	std::cout << bracket_counter << std::endl;
 	if (bracket_counter % 2 != 0 || bracket_counter == 0)
 	{
 		std::cerr << "Error: wrong config format" << std::endl;
 		exit(EXIT_FAILURE);
 	}
+	file.close();
 }

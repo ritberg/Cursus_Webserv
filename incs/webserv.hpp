@@ -1,5 +1,7 @@
 #pragma once
 
+#include "servers.hpp"
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -22,24 +24,18 @@
 class ServerSocket
 {
 	private:
-		// int server_fd;
 		std::vector<int> server_fds;
-		std::vector<int> ports;
+		servers *server;
+		servers currentServ;
+		int servSize;
     	int max_socket;
 		struct sockaddr_in server_addr;
-		// std::vector<int> client_sockets;
 		fd_set active_sockets, ready_sockets;
-    	/* char buffer[MAX_BUFFER_SIZE]; */
-		std::map<std::string, std::string> server_config;
-		std::map<std::string, std::string> server_error;
-		//std::map< int, std::pair<std::string, std::string> > server_location;
-		//int nb_locations;
-		std::vector<std::map<std::string, std::string> > server_location;
 		std::vector<std::string> uploaded_files;
 
-		bool _check(int socket_ID);//
-		int _receive(int socket_ID, std::string & buffer); //
-		int _respond(int socket_ID, std::string & buffer); //
+		bool _check(int socket_ID);
+		int _receive(int socket_ID, std::string & buffer);
+		int _respond(int socket_ID, std::string & buffer);
 
 	public:
 		ServerSocket();
@@ -48,9 +44,9 @@ class ServerSocket
 		~ServerSocket();
 
 		void Init(const std::string &configFile);
-		void Loop(bool end); //
+		void Loop(bool end);
 		void readConfigFile(const std::string &configFile);
-		void parseLocation(const std::vector<std::string>& tmpLine, int index);
+		void parseLocation(const std::vector<std::string>& tmpLine, int index, int ind_serv);
 		std::string callErrorFiles(const int error);
 		std::string buildErrorFiles(const std::string error);
 		std::map<int, std::string> parseFileInfo(std::string path);

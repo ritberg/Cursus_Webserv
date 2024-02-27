@@ -19,8 +19,8 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	char **envp;
 
 	std::string path;
-	std::map<std::string, std::string>::iterator it = server_config.find("web_root");
-	if (it != server_config.end())
+	std::map<std::string, std::string>::iterator it = currentServ.getServConf("web_root");
+	if (it != currentServ.getConfEnd())
 		path = it->second + cgiScriptPath;
 	else
 		path = cgiScriptPath;
@@ -29,17 +29,27 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	argv[2] = 0;
 	if (filename[0] == 0)
 	{
-		envp = (char **)malloc(sizeof(char *) * 2);
+		envp = (char **)malloc(sizeof(char *) * 7);
 		envp[0] = strdup("REQUEST_METHOD=GET");
-		envp[1] = 0;
+		envp[1] = strdup("CONTENT_LENGTH");
+		envp[2] = strdup("PATH_INFO");
+		envp[3] = strdup("PATH_TRANSLATED");
+		envp[4] = strdup("QUERY_STRING)");
+		envp[5] = strdup("SERVER_NAME");
+		envp[6] = 0;
 	}
 	else
 	{
-		envp = (char **)malloc(sizeof(char *) * 3);
+		envp = (char **)malloc(sizeof(char *) * 8);
 		std::string tmp = "FILENAME=" + filename;
 		envp[0] = strdup("REQUEST_METHOD=POST");
-		envp[1] = strdup(tmp.c_str());
-		envp[2] = 0;
+		envp[1] = strdup("CONTENT_LENGTH");
+		envp[2] = strdup("PATH_INFO");
+		envp[3] = strdup("PATH_TRANSLATED");
+		envp[4] = strdup("QUERY_STRING)");
+		envp[5] = strdup("SERVER_NAME");
+		envp[6] = strdup(tmp.c_str());
+		envp[7] = 0;
 	}
 	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
 	{
@@ -99,7 +109,6 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 			return (callErrorFiles(404));
 		if (status == 255)
 			return (callErrorFiles(418));
-		//std::cout << "response_data " << response_data << std::endl;
 	}
 	return response_data;
 }
