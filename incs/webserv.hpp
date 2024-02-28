@@ -28,14 +28,16 @@ class ServerSocket
 		servers *server;
 		servers currentServ;
 		int servSize;
+		std::string bufferSize;
+		std::string currentPath;
     	int max_socket;
 		struct sockaddr_in server_addr;
-		fd_set active_sockets, ready_sockets;
+		fd_set active_sockets, read_sockets, write_sockets;
 		std::vector<std::string> uploaded_files;
 
-		bool _check(int socket_ID);
-		int _receive(int socket_ID, std::string & buffer);
-		int _respond(int socket_ID, std::string & buffer);
+		bool _check(int socket_ID);//
+		int _receive(int socket_ID, std::string & buffer); //
+		int _respond(int socket_ID, std::string & buffer); //
 
 	public:
 		ServerSocket();
@@ -44,16 +46,18 @@ class ServerSocket
 		~ServerSocket();
 
 		void Init(const std::string &configFile);
-		void Loop(bool end);
-		void readConfigFile(const std::string &configFile);
-		void parseLocation(const std::vector<std::string>& tmpLine, int index, int ind_serv);
-		std::string callErrorFiles(const int error);
-		std::string buildErrorFiles(const std::string error);
-		std::map<int, std::string> parseFileInfo(std::string path);
-		std::string getFileInfo(std::string path, int type);
-		std::string handleHttpRequest(std::string &buffer);
-		std::string handleDeleteRequest(const std::string& path);
-		std::string handlePostRequest(const std::string &path, const std::string &buffer);
-		std::string handleGetRequest(const std::string &path, const std::string &buffer);
-		std::string executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename);
+        void Loop(bool end); //
+        void readConfigFile(const std::string &configFile);
+        void parseLocation(const std::vector<std::string>& tmpLine, int index, int ind_serv);
+        std::string callErrorFiles(const int error);
+        std::string buildErrorFiles(const std::string error);
+        int checkPerms(const std::string &buffer);
+        std::map<int, std::string> parseFileInfo(std::string path);
+        std::string getFileInfo(std::string path, int type, const std::string buffer);
+        std::string handleHttpRequest(std::string &buffer);
+        std::string handleDeleteRequest(const std::string& path);
+        std::string handlePostRequest(const std::string &path, const std::string &buffer);
+        std::string handleGetRequest(const std::string &path, const std::string &buffer);
+        std::string executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename);
+
 };

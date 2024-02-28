@@ -18,6 +18,77 @@ bool checkValue(const std::string value)
 	return false;
 }
 
+int	ServerSocket::checkPerms(const std::string &buffer)
+{
+	std::map<std::string, std::string>::iterator it;
+	std::istringstream request(buffer);
+	std::string method, path, line, path_cpy;
+	request >> method >> path;
+
+	it = currentServ.getServConf("web_root");
+	if (it != currentServ.getConfEnd())
+	{
+		path_cpy = it->second + path_cpy;
+		struct stat s;
+		if (stat(path_cpy.c_str(), &s) == 0)
+		{
+			path_cpy = path;
+			if(s.st_mode & S_IFDIR)
+			{
+				if (path_cpy[path_cpy.length() - 1] != '/')
+				{
+					path_cpy.append("/");
+				}
+			}
+		}
+		else
+			path_cpy = path;
+	}
+
+	int trigger = 0;
+	int trigger2 = 0;
+	while (trigger2 == 0)
+	{
+		for (int i = 0; i < currentServ.getLocationSize() && trigger == 0; i++)
+		{
+			std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
+			if (!((it->second.substr(0, it->second.rfind("/")) + "/").compare(path_cpy.substr(0, path_cpy.rfind("/")) + "/")))
+			{
+				trigger2 = 1;
+				it = currentServ.getServLocation(i, "deny");
+				if (it != currentServ.getLocationEnd(i))
+				{
+					if (it->second == "all")
+					{
+						it = currentServ.getServLocation(i, "return");
+						if (it != currentServ.getLocationEnd(i))
+							return (stoi(it->second));
+					}
+				}
+				for (it = currentServ.getLocationBegin(i); it != currentServ.getLocationEnd(i); it++)
+				{
+					if (it->second == "allow" && it->first == method)
+					{
+						trigger = 1;
+						break ;
+					}
+				}
+			}
+		}
+		if (path_cpy.length() == 1)
+			break;
+		if (trigger2 == 0)
+		{
+			int pos = path_cpy.length();
+			pos--;
+			while (path_cpy[pos] != '/')
+				pos--;
+			path_cpy = path_cpy.substr(0, pos);
+		}
+	}
+	return (trigger);
+}
+
 std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 {
 	struct stat s;
@@ -25,6 +96,7 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	std::string tmp;
 	std::map<int, std::string> response;
 	std::map<std::string, std::string>::iterator it;
+	int trigger = 0;
 
 	for (int k = 0; k < currentServ.getLocationSize(); k++)
 	{
@@ -49,75 +121,96 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	if (it != currentServ.getConfEnd())
 		path = it->second + path;
 	if (path_cpy.length() == 1)
-		tmp = "/";
-	else
-		tmp = path_cpy.substr(0, path_cpy.find_first_of("/", 1) + 1);
-	for (int j = 0; j < currentServ.getLocationSize(); j++)
 	{
-	 	it = currentServ.getServLocation(j, "location");
-		if (it != currentServ.getLocationEnd(j))
+		for (int i = 0; i < currentServ.getLocationSize(); i++)
 		{
-			if (tmp == it->second)
+			std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
+			if (it != currentServ.getLocationEnd(i))
 			{
-				it = currentServ.getServLocation(j, "deny");
-				if (it != currentServ.getLocationEnd(j))
+				if (it->second == "/")
 				{
-					if (it->second == "all")
+					std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "default_file");
+					if (it != currentServ.getLocationEnd(i))
 					{
-						it = currentServ.getServLocation(j, "return");
-						if (it != currentServ.getLocationEnd(j))
-						{
-							response[1] = callErrorFiles(stoi(it->second));
-							return (response);
-						}
+						path = path + it->second;
+						trigger = 1;
 					}
 				}
 			}
 		}
 	}
-	if (stat(path.c_str(), &s) == 0)
+	if (stat(path.c_str(), &s) == 0 && trigger == 0)
 	{
 		if(s.st_mode & S_IFDIR)
 		{
-			for (int i = 0; i < currentServ.getLocationSize(); i++)
+			int path_cpy_len = path_cpy.length();
+			while (trigger == 0)
 			{
-	 			it = currentServ.getServLocation(i, "location");
-				if (it != currentServ.getLocationEnd(i))
+				for (int i = 0; i < currentServ.getLocationSize(); i++)
 				{
-					if (it->second == path_cpy)
+					it = currentServ.getServLocation(i, "location");
+					if (it != currentServ.getLocationEnd(i))
 					{
-						it = currentServ.getServLocation(i, "autoindex");
-						if (it != currentServ.getLocationEnd(i))
+						if (it->second == path_cpy)
 						{
-							if (it->second == "on")
+							it = currentServ.getServLocation(i, "autoindex");
+							if (it != currentServ.getLocationEnd(i))
 							{
-								std::map<std::string, std::string>::const_iterator it = currentServ.getServConf("index");
-								if (it != currentServ.getConfEnd())
+								trigger = 2;
+								if (it->second == "on")
 								{
-									if (path_cpy.length() == 1)
-										path = path + it->second;
+									std::map<std::string, std::string>::const_iterator it = currentServ.getServConf("index");
+									if (it != currentServ.getConfEnd())
+									{
+										if (path_cpy_len == 1)
+											path = path + it->second;
+										else
+											path = path + "/" + it->second;		
+									}
 									else
-										path = path + "/" + it->second;		
+									{
+										if (path_cpy_len == 1)
+											path = path + "index.html";
+										else
+											path = path + "/index.html";
+									}
+									trigger = 1;
 								}
-								else
-								{
-									if (path_cpy.length() == 1)
-										path = path + "index.html";
-									else
-										path = path + "/index.html";
-								}
-								response[0] = path;
-								return (response);
 							}
 						}
 					}
 				}
+				if (path_cpy.length() == 1)
+					break;
+				if (trigger == 0)
+				{
+					int pos = path_cpy.length() - 1;
+					if (path_cpy[pos] == '/')
+						pos--;
+					while (path_cpy[pos] != '/')
+						pos--;
+					path_cpy = path_cpy.substr(0, pos + 1);
+				}
 			}
-			if (path_cpy != "/")
-				response[1] = callErrorFiles(403);
 		}
+		else if( s.st_mode & S_IFREG )
+			trigger = 1;
 	}
-	response[2] = path;
+	else
+		trigger = 1;
+	std::cout << "TRIGGER = " << trigger << std::endl;
+	if (trigger == 0 || trigger == 2)
+	{
+		response[1] = callErrorFiles(403);
+		return (response);
+	}
+	std::cout << "FILENAME = " << path << std::endl;
+	FILE * fin;
+	fin = fopen(path.c_str(), "rb");
+	if (fin == NULL)
+		response[-1] = "";
+	else
+		response[0] = path;
 	return(response);
 }
 

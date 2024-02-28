@@ -17,7 +17,8 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 	server_addr = copy.server_addr;
 	// client_sockets = copy.client_sockets;
 	active_sockets = copy.active_sockets;
-	ready_sockets = copy.ready_sockets;
+	write_sockets = copy.write_sockets;
+	read_sockets = copy.read_sockets;
 	// server_config = copy.server_config;
 
 	return (*this);
@@ -116,7 +117,8 @@ void ServerSocket::Init(const std::string &configFile)
 		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
 			std::cout << server[j].getPorts()[i] << " ";
 	}
-	std::cout << "----" << std::endl << std::endl;
+	std::cout << "----" << std::endl
+			  << std::endl;
 
 	bool end = false;
 	while (1)
@@ -162,46 +164,47 @@ int ServerSocket::_receive(int socket_ID, std::string &buffer)
 
 int ServerSocket::_respond(int socket_ID, std::string &buffer)
 {
-    // std::cout << "buffer " << buffer << std::endl;
-    std::cout << "length " << buffer.length() << std::endl;
-    int ret;
-    std::string response;
-    std::string host;
-    size_t pos = buffer.find("Host: ");
-    if (pos != std::string::npos)
-    {
-        pos += 6;
-        std::cout << "host = " << buffer[pos] << std::endl;
-        while (buffer[pos] != ':')
-            pos++;
-        pos++;
-        int limit = pos;;
-        while (buffer[limit] != '\r')
-            limit++;
-        limit -= pos;
-        std::cout << "limit = " << limit << std::endl;
-        host = buffer.substr(pos, limit);
-    }
-    if (host.empty())
-        return -1;
-    std::cout << "host = " << host << std::endl;
-    for (int j = 0; j < servSize; ++j)
-    {
-        for (size_t i = 0; i < server[j].getPorts().size(); ++i)
-        {
-            if (server[j].getPorts()[i] == stod(host))
-            {
-                currentServ = server[j];
-                break;
-            }
-        }
-    }
-    if (buffer.length() == 0)
-        response = callErrorFiles(400);
-    else
-        response = handleHttpRequest(buffer);
-    ret = send(socket_ID, response.c_str(), response.size(), 0);
-    return ret;
+	// std::cout << "buffer " << buffer << std::endl;
+	std::cout << "length " << buffer.length() << std::endl;
+	int ret;
+	std::string response;
+	std::string host;
+	size_t pos = buffer.find("Host: ");
+	if (pos != std::string::npos)
+	{
+		pos += 6;
+		std::cout << "host = " << buffer[pos] << std::endl;
+		while (buffer[pos] != ':')
+			pos++;
+		pos++;
+		int limit = pos;
+		;
+		while (buffer[limit] != '\r')
+			limit++;
+		limit -= pos;
+		std::cout << "limit = " << limit << std::endl;
+		host = buffer.substr(pos, limit);
+	}
+	if (host.empty())
+		return -1;
+	std::cout << "host = " << host << std::endl;
+	for (int j = 0; j < servSize; ++j)
+	{
+		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
+		{
+			if (server[j].getPorts()[i] == stod(host))
+			{
+				currentServ = server[j];
+				break;
+			}
+		}
+	}
+	if (buffer.length() == 0)
+		response = callErrorFiles(400);
+	else
+		response = handleHttpRequest(buffer);
+	ret = send(socket_ID, response.c_str(), response.size(), 0);
+	return ret;
 }
 
 void ServerSocket::Loop(bool end)
@@ -214,15 +217,36 @@ void ServerSocket::Loop(bool end)
 	tv.tv_usec = 0;
 
 	std::string buffer;
-	ready_sockets = active_sockets;
+	read_sockets = active_sockets;
+	// write_sockets = read_sockets;
+	FD_ZERO(&read_sockets);
+	FD_ZERO(&write_sockets);
 	while (!end)
 	{
-		memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
-		ret = select(max_socket + 1, &ready_sockets, NULL, NULL, &tv);
+		// memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
+		memcpy(&read_sockets, &active_sockets, sizeof(active_sockets));
+		// memcpy(&write_sockets, &active_sockets, sizeof(active_sockets));
+		ret = select(max_socket + 1, &read_sockets, &write_sockets, NULL, &tv);
 		if (ret == -1)
 		{
 			std::cerr << "Error in select(): " << strerror(errno) << std::endl;
 			exit(1);
+		}
+		std::cout << "max socket 1 = " << max_socket << std::endl;
+		if (ret == 0)
+		{
+			if (FD_ISSET(5, &read_sockets))
+			{
+				FD_CLR(5, &read_sockets);
+				std::cout << "hello1" << std::endl;
+			}
+			if (FD_ISSET(5, &write_sockets))
+			{
+				FD_CLR(5, &write_sockets);
+				std::cout << "hello2" << std::endl;
+			}
+			int test = close(5);
+			std::cout << "close return = " << test << std::endl;
 		}
 		ready = ret;
 		std::cout << "max_socket début " << max_socket << std::endl;
@@ -230,7 +254,7 @@ void ServerSocket::Loop(bool end)
 				  << "==== WAITING ====" << std::endl;
 		for (int socket_ID = 0; socket_ID <= max_socket && ready > 0; socket_ID++)
 		{
-			if (FD_ISSET(socket_ID, &ready_sockets))
+			if (FD_ISSET(socket_ID, &read_sockets) || FD_ISSET(socket_ID, &write_sockets))
 			{
 				ready = -1;
 				if (_check(socket_ID))
@@ -257,23 +281,30 @@ void ServerSocket::Loop(bool end)
 				else
 				{
 					close_connection = false;
-					while (1)
+					if (FD_ISSET(socket_ID, &read_sockets))
 					{
+						std::cout << "in read" << std::endl;
 						ret = _receive(socket_ID, buffer);
 						std::cout << "ret " << ret << std::endl;
 						flag++;
 						if (ret <= 0 && flag != 1)
 						{
 							close_connection = true;
-							break;
 						}
+						FD_CLR(socket_ID, &read_sockets);
+						FD_SET(socket_ID, &write_sockets);
+					}
+					if (FD_ISSET(socket_ID, &write_sockets))
+					{
+						std::cout << "in write" << std::endl;
 						ret = _respond(socket_ID, buffer);
 						if (ret == -1)
 						{
 							std::cerr << "Send() error" << std::endl;
 							close_connection = true;
-							break;
 						}
+						// FD_CLR(socket_ID, &write_sockets);
+						close_connection = true;
 					}
 					if (close_connection)
 					{

@@ -9,6 +9,22 @@ void mfree(char **f)
 	free (f);
 }
 
+std::string getPathInfo(std::string path)
+{
+	if (path.rfind(".") != std::string::npos && path.rfind(".") < path.rfind("/"))
+		return path.substr(path.rfind("/"), path.rfind(".") - path.rfind("/") - 1);
+
+	return "";
+}
+
+std::string getQueryString(std::string path)
+{
+	if (path.rfind("?") != std::string::npos && path.rfind("?") < path.length() - 1)
+		return path.substr(path.rfind("?") + 1, path.length() - 1);
+
+	return "";
+}
+
 std::string ServerSocket::executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename)
 {
 	std::string response_data;
@@ -31,26 +47,20 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	{
 		envp = (char **)malloc(sizeof(char *) * 7);
 		envp[0] = strdup("REQUEST_METHOD=GET");
-		envp[1] = strdup("CONTENT_LENGTH");
-		envp[2] = strdup("PATH_INFO");
-		envp[3] = strdup("PATH_TRANSLATED");
-		envp[4] = strdup("QUERY_STRING)");
-		envp[5] = strdup("SERVER_NAME");
 		envp[6] = 0;
 	}
 	else
 	{
 		envp = (char **)malloc(sizeof(char *) * 8);
-		std::string tmp = "FILENAME=" + filename;
 		envp[0] = strdup("REQUEST_METHOD=POST");
-		envp[1] = strdup("CONTENT_LENGTH");
-		envp[2] = strdup("PATH_INFO");
-		envp[3] = strdup("PATH_TRANSLATED");
-		envp[4] = strdup("QUERY_STRING)");
-		envp[5] = strdup("SERVER_NAME");
-		envp[6] = strdup(tmp.c_str());
+		envp[6] = strdup((std::string("FILENAME=").append(filename)).c_str());
 		envp[7] = 0;
 	}
+	envp[1] = strdup((std::string("CONTENT_LENGTH=").append(bufferSize)).c_str());
+	envp[2] = strdup(std::string("PATH_INFO=").append(getPathInfo(currentPath)).c_str());
+	envp[3] = strdup("PATH_TRANSLATED");
+	envp[4] = strdup(std::string("QUERY_STRING=").append(getQueryString(currentPath)).c_str());
+	envp[5] = strdup("SERVER_NAME");
 	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
 	{
 		perror("In pipe");

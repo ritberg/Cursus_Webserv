@@ -1,43 +1,46 @@
 #include "webserv.hpp"
 
-std::string ServerSocket::getFileInfo(std::string path, int type)
+std::string ServerSocket::getFileInfo(std::string path, int type, const std::string buffer)
 {
 	FILE * fin;
 	std::vector<char> bufferFile;
 	std::string response;
-	std::string path_cpy = path;
-	int trigger = 0;
+	std::string path_cpy;
+	int return_value = 0;
 
-	std::map<int, std::string> tmp = parseFileInfo(path);
-	std::map<int, std::string>::iterator it;
-	it = tmp.begin();
-	int return_value = it->first;
-	if (return_value == 1)
-		return (it->second);
-	path = it->second;
-	if (type == 0 || type == -1)
+	if (type == 0)
 	{
-		if (path_cpy.length() == 1 && return_value == 2)
+		std::map<int, std::string> tmp = parseFileInfo(path);
+		std::map<int, std::string>::iterator it;
+		it = tmp.begin();
+		return_value = it->first;
+		if (return_value == 1)
+			return (it->second);
+		path = it->second;
+	}
+	else
+	{
+		std::map<std::string, std::string>::iterator it;
+		path_cpy = path;
+		if (path_cpy[path_cpy.length() - 1] != '/')
+			path_cpy.append("/");
+		it = currentServ.getServConf("web_root");
+		if (it != currentServ.getConfEnd())
+			path = it->second + path;
+	}
+	if (return_value != -1)
+	{
+		int result = checkPerms(buffer);
+		if (result > 1)
+			return (callErrorFiles(result));
+		else if (result == 0)
+			return (callErrorFiles(405));
+	}
+	path_cpy = path;
+	if (type == 0)
+	{
+		if (path_cpy.length() == 1)
 		{
-			for (int i = 0; i < currentServ.getLocationSize(); i++)
-			{
-				std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
-				if (it != currentServ.getLocationEnd(i))
-				{
-					if (it->second == "/")
-					{
-						std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "default_file");
-						if (it != currentServ.getLocationEnd(i))
-						{
-							path = path + "/" + it->second;
-							trigger = 1;
-						}
-					}
-				}
-			}
-			if (trigger == 0)
-				path = path + "/index.html";
-			std::cout << "PATH = " << path << std::endl;
 			fin = fopen(path.c_str(), "rb");
 		}
 		else
@@ -45,7 +48,7 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 	}
 	else
 		fin = fopen(path.c_str(), "rb");
-	if (fin == NULL)
+	if (fin == NULL || return_value == -1)
 	{
 		//if the file doesn't exist, a special file is made to display error 404
 		std::map<std::string, std::string>::iterator it;
@@ -85,9 +88,9 @@ std::string ServerSocket::handleGetRequest(const std::string &path, const std::s
 	if (path.find(".php") != std::string::npos)
 		return executeCGIScript("/usr/bin/php", path, "", "");
 	else if (buffer.find("Accept: text/html") != std::string::npos)
-		response = getFileInfo(path, 0);
+		response = getFileInfo(path, 0, buffer);
 	else
-		response = getFileInfo(path, 1);
+		response = getFileInfo(path, 1, buffer);
 	return (response);
 }
 
@@ -188,38 +191,13 @@ std::string ServerSocket::handleHttpRequest(std::string &buffer)
 	std::istringstream request(buffer);
 	std::string method, path, line, protocol, path_cpy;
 	request >> method >> path >> protocol;
-	int trigger = 0;
-	int trigger2 = 0;
-	path_cpy = path;
+	int result = 1;
+	if (method == "DELETE" || method == "POST")
+		result = checkPerms(buffer);
 
-	while (trigger2 == 0)
-	{
-		for (int i = 0; i < currentServ.getLocationSize(); i++)
-		{
-			std::map<std::string, std::string>::iterator it = currentServ.getServLocation(i, "location");
-			if (!((it->second.substr(0, it->second.rfind("/")) + "/").compare(path_cpy.substr(0, path_cpy.rfind("/")) + "/")))
-			{
-				trigger2 = 1;
-				for (it = currentServ.getLocationBegin(i); it != currentServ.getLocationEnd(i); it++)
-				{
-					if (it->second == "allow" && it->first == method)
-						trigger = 1;
-				}
-			}
-		}
-		if (path_cpy.length() == 1)
-			break;
-		if (trigger == 0)
-		{
-			int pos = path_cpy.length();
-			pos--;
-			while (path_cpy[pos] != '/')
-				pos--;
-			path_cpy = path_cpy.substr(0, pos);
-		}
-	}
-
-	if (trigger != 1)
+	if (result > 1)
+		return (callErrorFiles(result));
+	if (!result)
 		return (callErrorFiles(405));
 	if (protocol != "HTTP/1.1")
 		return (callErrorFiles(505));
