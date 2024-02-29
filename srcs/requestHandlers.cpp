@@ -113,16 +113,17 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 	it = currentServ.getServConf("client_max_body_size");
 	if (it != currentServ.getConfEnd())
 	{
-		int len = buffer.length();
-		if (len > stoi(it->second))
+		double len = buffer.length();
+		if (len > stod(it->second))
 			return (callErrorFiles(413));
 	}
-	int test;
+	int pos;
 	if (buffer.find("Content-Length: ") == std::string::npos)
 		return(callErrorFiles(411));
-	test = buffer.find("Content-Length: ");
-	std::string stringtest = buffer.substr(test + 16, 1);
-	if (stoi(stringtest) == 0)
+	bufferSize = getLastPart(buffer, "Content-Length: ");
+	pos = buffer.find("Content-Length: ");
+	std::string content_len = buffer.substr(pos + 16, 1);
+	if (stod(content_len) == 0)
 		return (callErrorFiles(400));
 
 	size_t pos_marker = buffer.find("boundary=");

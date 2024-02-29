@@ -30,6 +30,7 @@ class ServerSocket
 		int servSize;
 		std::string bufferSize;
 		std::string currentPath;
+		std::string serverName;
     	int max_socket;
 		struct sockaddr_in server_addr;
 		fd_set active_sockets, read_sockets, write_sockets;
@@ -59,5 +60,5 @@ class ServerSocket
         std::string handlePostRequest(const std::string &path, const std::string &buffer);
         std::string handleGetRequest(const std::string &path, const std::string &buffer);
         std::string executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename);
-
+		std::string getLastPart(const std::string &str, const std::string &cut);
 };

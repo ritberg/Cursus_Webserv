@@ -28,7 +28,7 @@ std::string getQueryString(std::string path)
 std::string ServerSocket::executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename)
 {
 	std::string response_data;
-	std::cout << shebang << "|" << cgiScriptPath << "|" << body <<  "|" << filename << std::endl;
+	// std::cout << shebang << "|" << cgiScriptPath << "|" << body <<  "|" << filename << std::endl;
 	int stdin_pipe[2];
 	int stdout_pipe[2];
 	char **argv = (char **)malloc(sizeof(char *) * 3);
@@ -58,9 +58,11 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	}
 	envp[1] = strdup((std::string("CONTENT_LENGTH=").append(bufferSize)).c_str());
 	envp[2] = strdup(std::string("PATH_INFO=").append(getPathInfo(currentPath)).c_str());
-	envp[3] = strdup("PATH_TRANSLATED");
+	envp[3] = strdup("PATH_TRANSLATED=");
 	envp[4] = strdup(std::string("QUERY_STRING=").append(getQueryString(currentPath)).c_str());
-	envp[5] = strdup("SERVER_NAME");
+	envp[5] = strdup(std::string("SERVER_NAME=").append(serverName).c_str());
+	/* for (int i = 0; envp[i] != 0; i++) */
+	/* 	std::cout << "ENVP[" << i << "]: " << envp[i] << std::endl; */
 	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
 	{
 		perror("In pipe");
@@ -96,7 +98,7 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 
 		response_data.clear();
 		response_data.append("HTTP/1.1 200 OK\r\n\r\n");
-
+		std::cout << "nothello1" << std::endl;
 		int bytes_read;
 		while ((bytes_read = read(stdout_pipe[0], buffer, sizeof(buffer) - 1)) > 0)
 		{
@@ -108,6 +110,7 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 			perror("error in read");
 			exit(EXIT_FAILURE);
 		}
+		std::cout << "nothello2" << std::endl;
 
 		int status;
 		waitpid(pid, &status, 0);
@@ -120,5 +123,6 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 		if (status == 255)
 			return (callErrorFiles(418));
 	}
+	std::cout << "nothello3" << std::endl;
 	return response_data;
 }

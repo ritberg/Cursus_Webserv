@@ -17,8 +17,8 @@ ServerSocket &ServerSocket::operator=(const ServerSocket &copy)
 	server_addr = copy.server_addr;
 	// client_sockets = copy.client_sockets;
 	active_sockets = copy.active_sockets;
-	write_sockets = copy.write_sockets;
 	read_sockets = copy.read_sockets;
+	write_sockets = copy.write_sockets;
 	// server_config = copy.server_config;
 
 	return (*this);
@@ -28,6 +28,15 @@ ServerSocket::~ServerSocket()
 {
 	delete[] server;
 	std::cout << "memory was freed" << std::endl;
+}
+
+std::string  ServerSocket::getLastPart(const std::string &str, const std::string &cut)
+{
+    size_t start = str.find(cut) + cut.length();
+	size_t end = start - 1;
+	while (str[++end] != '\r');
+
+	return (str.substr(start, end));
 }
 
 void ServerSocket::Init(const std::string &configFile)
@@ -117,8 +126,7 @@ void ServerSocket::Init(const std::string &configFile)
 		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
 			std::cout << server[j].getPorts()[i] << " ";
 	}
-	std::cout << "----" << std::endl
-			  << std::endl;
+	std::cout << "----" << std::endl << std::endl;
 
 	bool end = false;
 	while (1)
@@ -144,6 +152,7 @@ int ServerSocket::_receive(int socket_ID, std::string &buffer)
 	memset(tmpBuffer, 0, sizeof(tmpBuffer));
 	do
 	{
+		usleep(100);
 		bytesRead = recv(socket_ID, tmpBuffer, sizeof(tmpBuffer) - 1, MSG_DONTWAIT);
 		if (bytesRead > 0)
 		{
@@ -164,67 +173,73 @@ int ServerSocket::_receive(int socket_ID, std::string &buffer)
 
 int ServerSocket::_respond(int socket_ID, std::string &buffer)
 {
-	// std::cout << "buffer " << buffer << std::endl;
-	std::cout << "length " << buffer.length() << std::endl;
-	int ret;
-	std::string response;
-	std::string host;
-	size_t pos = buffer.find("Host: ");
-	if (pos != std::string::npos)
-	{
-		pos += 6;
-		std::cout << "host = " << buffer[pos] << std::endl;
-		while (buffer[pos] != ':')
-			pos++;
-		pos++;
-		int limit = pos;
-		;
-		while (buffer[limit] != '\r')
-			limit++;
-		limit -= pos;
-		std::cout << "limit = " << limit << std::endl;
-		host = buffer.substr(pos, limit);
-	}
-	if (host.empty())
-		return -1;
-	std::cout << "host = " << host << std::endl;
-	for (int j = 0; j < servSize; ++j)
-	{
-		for (size_t i = 0; i < server[j].getPorts().size(); ++i)
-		{
-			if (server[j].getPorts()[i] == stod(host))
-			{
-				currentServ = server[j];
-				break;
-			}
-		}
-	}
+    // std::cout << "buffer " << buffer << std::endl;
 	if (buffer.length() == 0)
-		response = callErrorFiles(400);
-	else
-		response = handleHttpRequest(buffer);
-	ret = send(socket_ID, response.c_str(), response.size(), 0);
-	return ret;
+		return -1;
+    std::cout << "length " << buffer.length() << std::endl;
+	serverName = getLastPart(buffer, "Host: ");
+    int ret;
+    std::string response;
+    std::string host;
+    size_t pos = buffer.find("Host: ");
+    if (pos != std::string::npos)
+    {
+        pos += 6;
+        std::cout << "host = " << buffer[pos] << std::endl;
+        while (buffer[pos] != ':')
+            pos++;
+        pos++;
+        int limit = pos;
+        while (buffer[limit] != '\r')
+            limit++;
+        limit -= pos;
+        std::cout << "limit = " << limit << std::endl;
+        host = buffer.substr(pos, limit);
+    }
+    if (host.empty())
+        return -1;
+    std::cout << "host = " << host << std::endl;
+    for (int j = 0; j < servSize; ++j)
+    {
+        for (size_t i = 0; i < server[j].getPorts().size(); ++i)
+        {
+            if (server[j].getPorts()[i] == stod(host))
+            {
+                currentServ = server[j];
+                break;
+            }
+        }
+    }
+    if (buffer.length() == 0)
+        response = callErrorFiles(400);
+    else
+        response = handleHttpRequest(buffer);
+    ret = send(socket_ID, response.c_str(), response.size(), 0);
+    return ret;
 }
 
 void ServerSocket::Loop(bool end)
 {
-	int ret = 0, ready = 0, new_sd;
+	int ret, ready = 0, new_sd;
 	bool close_connection;
-	int flag = 0;
-	struct timeval tv;
-	tv.tv_sec = 2;
-	tv.tv_usec = 0;
+	// int flag = 0;
 
 	std::string buffer;
 	read_sockets = active_sockets;
-	// write_sockets = read_sockets;
-	FD_ZERO(&read_sockets);
-	FD_ZERO(&write_sockets);
+	fd_set	active_write;
+	// FD_ZERO(&read_sockets);
+	FD_ZERO(&active_write);
 	while (!end)
 	{
+		usleep(1000);
+		struct timeval tv;
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
+		FD_ZERO(&read_sockets);
+		FD_ZERO(&write_sockets);
 		// memcpy(&ready_sockets, &active_sockets, sizeof(active_sockets));
 		memcpy(&read_sockets, &active_sockets, sizeof(active_sockets));
+		memcpy(&write_sockets, &active_write, sizeof(active_write));
 		// memcpy(&write_sockets, &active_sockets, sizeof(active_sockets));
 		ret = select(max_socket + 1, &read_sockets, &write_sockets, NULL, &tv);
 		if (ret == -1)
@@ -233,21 +248,24 @@ void ServerSocket::Loop(bool end)
 			exit(1);
 		}
 		std::cout << "max socket 1 = " << max_socket << std::endl;
-		if (ret == 0)
-		{
-			if (FD_ISSET(5, &read_sockets))
-			{
-				FD_CLR(5, &read_sockets);
-				std::cout << "hello1" << std::endl;
-			}
-			if (FD_ISSET(5, &write_sockets))
-			{
-				FD_CLR(5, &write_sockets);
-				std::cout << "hello2" << std::endl;
-			}
-			int test = close(5);
-			std::cout << "close return = " << test << std::endl;
-		}
+		// if (ret == 0)
+		// {
+		// 	if (FD_ISSET(5, &active_sockets))
+		// 	{
+		// 		FD_CLR(5, &active_sockets);
+		// 		max_socket--;
+		// 		std::cout << "hello1" << std::endl;
+		// 	}
+		// 	if (FD_ISSET(5, &active_write))
+		// 	{
+		// 		FD_CLR(5, &active_write);
+		// 		max_socket--;
+		// 		std::cout << "hello2" << std::endl;
+		// 	}
+		// 	int test = close(5);
+		// 	continue;
+		// 	std::cout << "close return = " << test << std::endl;
+		// }
 		ready = ret;
 		std::cout << "max_socket début " << max_socket << std::endl;
 		std::cout << std::endl
@@ -259,24 +277,22 @@ void ServerSocket::Loop(bool end)
 				ready = -1;
 				if (_check(socket_ID))
 				{
-					while (1)
+					// struct sockaddr_in clients;
+					// socklen_t clientsize = sizeof(clients);
+					// new_sd = accept(socket_ID, (struct sockaddr *)&clients, &clientsize);
+					new_sd = accept(socket_ID, NULL, NULL);
+					if (new_sd < 0)
 					{
-						new_sd = accept(socket_ID, NULL, NULL);
-						if (new_sd < 0)
+						if (errno != EWOULDBLOCK)
 						{
-							if (errno != EWOULDBLOCK)
-							{
-								std::cerr << "Error accepting client connection" << std::endl;
-								end = true;
-							}
-							break;
+							std::cerr << "Error accepting client connection" << std::endl;
+							end = true;
 						}
-						std::cout << "server socket: " << new_sd << std::endl;
-						FD_SET(new_sd, &active_sockets);
-						max_socket = (new_sd > max_socket) ? new_sd : max_socket;
-						if (new_sd == -1)
-							break;
+						break;
 					}
+					std::cout << "server socket: " << new_sd << std::endl;
+					FD_SET(new_sd, &active_sockets);
+					max_socket = (new_sd > max_socket) ? new_sd : max_socket;
 				}
 				else
 				{
@@ -286,15 +302,16 @@ void ServerSocket::Loop(bool end)
 						std::cout << "in read" << std::endl;
 						ret = _receive(socket_ID, buffer);
 						std::cout << "ret " << ret << std::endl;
-						flag++;
-						if (ret <= 0 && flag != 1)
+						// flag++;
+						if (ret <= 0)
 						{
-							close_connection = true;
+							;
+							//close_connection = true;
 						}
-						FD_CLR(socket_ID, &read_sockets);
-						FD_SET(socket_ID, &write_sockets);
+						FD_CLR(socket_ID, &active_sockets);
+						FD_SET(socket_ID, &active_write);
 					}
-					if (FD_ISSET(socket_ID, &write_sockets))
+					else if (FD_ISSET(socket_ID, &write_sockets))
 					{
 						std::cout << "in write" << std::endl;
 						ret = _respond(socket_ID, buffer);
@@ -303,7 +320,7 @@ void ServerSocket::Loop(bool end)
 							std::cerr << "Send() error" << std::endl;
 							close_connection = true;
 						}
-						// FD_CLR(socket_ID, &write_sockets);
+						FD_CLR(socket_ID, &active_write);
 						close_connection = true;
 					}
 					if (close_connection)
@@ -321,11 +338,11 @@ void ServerSocket::Loop(bool end)
 			}
 		}
 	}
-	for (int i = 0; i <= max_socket; ++i)
-	{
-		if (FD_ISSET(i, &active_sockets))
-			close(i);
-	}
+	// for (int i = 0; i <= max_socket; ++i)
+	// {
+	// 	if (FD_ISSET(i, &active_sockets))
+	// 		close(i);
+	// }
 }
 
 int main(int argc, char **argv)

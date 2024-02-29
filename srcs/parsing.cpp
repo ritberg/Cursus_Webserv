@@ -24,7 +24,7 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 	std::istringstream request(buffer);
 	std::string method, path, line, path_cpy;
 	request >> method >> path;
-
+	std::cout << "request = " << method << std::endl;
 	it = currentServ.getServConf("web_root");
 	if (it != currentServ.getConfEnd())
 	{
@@ -62,7 +62,7 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 					{
 						it = currentServ.getServLocation(i, "return");
 						if (it != currentServ.getLocationEnd(i))
-							return (stoi(it->second));
+							return (stod(it->second));
 					}
 				}
 				for (it = currentServ.getLocationBegin(i); it != currentServ.getLocationEnd(i); it++)
@@ -86,6 +86,7 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 			path_cpy = path_cpy.substr(0, pos);
 		}
 	}
+	std::cout << "trigger = " << trigger << std::endl;
 	return (trigger);
 }
 
@@ -454,6 +455,14 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 	{
 		std::cerr << "Error: wrong config format" << std::endl;
 		exit(EXIT_FAILURE);
+	}
+	for (int i = 0; i < servSize; i++)
+	{
+		if (server[i].getServConf("web_root") == server[i].getConfEnd())
+		{
+			std::cerr << "Missing web_root in Server number " << i + 1 << std::endl;
+			exit(1);
+		}
 	}
 	file.close();
 }

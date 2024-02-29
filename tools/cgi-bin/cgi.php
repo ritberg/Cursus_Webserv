@@ -26,7 +26,7 @@
 //}
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $filename = getenv('FILENAME');
-    $path = "/Users/dferreir/42/Cursus/Webserv/uploaded_files/" . $filename;
+    $path = "/Users/mmakarov/Desktop/test/uploaded_files/" . $filename;
     $file = fopen($path, 'c');
     while (FALSE !== ($line = fgets(STDIN))) {
         fwrite($file, $line);

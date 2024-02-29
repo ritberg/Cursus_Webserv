@@ -98,7 +98,7 @@ std::string ServerSocket::callErrorFiles(const int error)
             return (buildErrorFiles("511 Network Authentication Required"));
         default:
         {
-            std::cerr << "Error: unsupported error" << std::endl;
+            std::cerr << "unsupported error" << std::endl;
             exit(1);
         }
 
