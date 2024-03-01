@@ -22,8 +22,7 @@ server {
 		dir_route tools/cgi-bin
 		allow POST
     	allow GET
-		deny all
-		return 400
+		allow DELETE
 	}
 
 	location /image-bin/ {

@@ -1,23 +1,5 @@
 #include "webserv.hpp"
 
-bool checkValue(const std::string value)
-{
-	try{
-		if (value.find_first_not_of("0123456789") != std::string::npos)
-		{
-			std::cerr << "Error: wrong characters in config detected" << std::endl;
-			exit(1);
-		}
-		stod(value);
-		return true;
-	}
-	catch(const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-		exit(1);
-    }
-	return false;
-}
-
 int	ServerSocket::checkPerms(const std::string &buffer)
 {
 	std::map<std::string, std::string>::iterator it;
@@ -212,6 +194,7 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 		response[-1] = "";
 	else
 		response[0] = path;
+	fclose(fin);
 	return(response);
 }
 

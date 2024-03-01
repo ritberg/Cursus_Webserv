@@ -99,7 +99,8 @@ std::string ServerSocket::callErrorFiles(const int error)
         default:
         {
             std::cerr << "unsupported error" << std::endl;
-            exit(1);
+            checkFdSets();
+		    return (callErrorFiles(500));
         }
 
     }

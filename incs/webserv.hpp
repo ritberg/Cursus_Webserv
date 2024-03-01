@@ -18,8 +18,7 @@
 #include <vector>
 #include <sys/stat.h>
 
-#define MAX_BUFFER_SIZE 100000
-#define MAX_CLIENTS 32
+#define MAX_CLIENTS 50
 
 class ServerSocket
 {
@@ -32,13 +31,16 @@ class ServerSocket
 		std::string currentPath;
 		std::string serverName;
     	int max_socket;
+		int servPortsCount;
 		struct sockaddr_in server_addr;
-		fd_set active_sockets, read_sockets, write_sockets;
+		int currentSocket;
+		fd_set active_sockets, active_write, read_sockets, write_sockets;
 		std::vector<std::string> uploaded_files;
-
+		//char **readBuffer
+		std::string	*readBuffer;
 		bool _check(int socket_ID);//
-		int _receive(int socket_ID, std::string & buffer); //
-		int _respond(int socket_ID, std::string & buffer); //
+		int _receive(int socket_ID); //
+		int _respond(int socket_ID); //
 
 	public:
 		ServerSocket();
@@ -61,4 +63,10 @@ class ServerSocket
         std::string handleGetRequest(const std::string &path, const std::string &buffer);
         std::string executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename);
 		std::string getLastPart(const std::string &str, const std::string &cut);
+		void checkFdSets();
 };
+
+	void	mfree(char **f);
+	bool checkValue(const std::string value);
+	std::string getQueryString(std::string path);
+	std::string getPathInfo(std::string path);

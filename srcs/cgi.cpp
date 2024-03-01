@@ -1,37 +1,16 @@
 #include "webserv.hpp"
 
-void mfree(char **f)
-{
-    int i = 0;
-
-    while(f[i] != 0)
-        free (f[i++]);
-	free (f);
-}
-
-std::string getPathInfo(std::string path)
-{
-	if (path.rfind(".") != std::string::npos && path.rfind(".") < path.rfind("/"))
-		return path.substr(path.rfind("/"), path.rfind(".") - path.rfind("/") - 1);
-
-	return "";
-}
-
-std::string getQueryString(std::string path)
-{
-	if (path.rfind("?") != std::string::npos && path.rfind("?") < path.length() - 1)
-		return path.substr(path.rfind("?") + 1, path.length() - 1);
-
-	return "";
-}
-
 std::string ServerSocket::executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename)
 {
 	std::string response_data;
-	// std::cout << shebang << "|" << cgiScriptPath << "|" << body <<  "|" << filename << std::endl;
 	int stdin_pipe[2];
 	int stdout_pipe[2];
 	char **argv = (char **)malloc(sizeof(char *) * 3);
+	if (argv == NULL)
+	{
+		checkFdSets();
+		return (callErrorFiles(500));
+	}
 	char **envp;
 
 	std::string path;
@@ -46,12 +25,22 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	if (filename[0] == 0)
 	{
 		envp = (char **)malloc(sizeof(char *) * 7);
+		if (envp == NULL)
+		{
+			checkFdSets();
+			return (callErrorFiles(500));
+		}
 		envp[0] = strdup("REQUEST_METHOD=GET");
 		envp[6] = 0;
 	}
 	else
 	{
 		envp = (char **)malloc(sizeof(char *) * 8);
+		if (envp == NULL)
+		{
+			checkFdSets();
+			return (callErrorFiles(500));
+		}
 		envp[0] = strdup("REQUEST_METHOD=POST");
 		envp[6] = strdup((std::string("FILENAME=").append(filename)).c_str());
 		envp[7] = 0;
@@ -66,13 +55,15 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
 	{
 		perror("In pipe");
-		exit(EXIT_FAILURE);
+		checkFdSets();
+		return (callErrorFiles(500));
 	}
 	pid_t pid = fork();
 	if (pid == -1)
 	{
 		perror("In fork");
-		exit(EXIT_FAILURE);
+		checkFdSets();
+		return (callErrorFiles(500));
 	}
 	if (pid == 0)
 	{
@@ -98,31 +89,27 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 
 		response_data.clear();
 		response_data.append("HTTP/1.1 200 OK\r\n\r\n");
-		std::cout << "nothello1" << std::endl;
 		int bytes_read;
 		while ((bytes_read = read(stdout_pipe[0], buffer, sizeof(buffer) - 1)) > 0)
 		{
 			response_data.append(buffer, bytes_read);
 			memset(buffer, 0, bytes_read);
 		}
-		if (bytes_read < 0 && errno != EWOULDBLOCK)
+		if (bytes_read == -1)
 		{
-			perror("error in read");
-			exit(EXIT_FAILURE);
+			std::cerr << "Couldn't read any output" << std::endl;
+			checkFdSets();
+			return (callErrorFiles(500));
 		}
-		std::cout << "nothello2" << std::endl;
-
 		int status;
 		waitpid(pid, &status, 0);
 		mfree(argv);
 		mfree(envp);
 		status = status / 256;
-		std::cout << "status = " << status << std::endl;
 		if (status == 1)
 			return (callErrorFiles(404));
 		if (status == 255)
 			return (callErrorFiles(418));
 	}
-	std::cout << "nothello3" << std::endl;
 	return response_data;
 }

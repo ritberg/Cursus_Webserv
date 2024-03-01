@@ -62,8 +62,12 @@ std::string ServerSocket::getFileInfo(std::string path, int type, const std::str
 				tmp = it2->second + it->second;
 			fin = fopen(tmp.c_str(), "rb");
 			if (fin == NULL)
+			{
+				fclose(fin);
 				return (buildErrorFiles("404 Not Found"));
+			}
 		}
+		fclose(fin);
 		return (callErrorFiles(404));
 	}
 	//here we calculate the size of the file
@@ -86,7 +90,14 @@ std::string ServerSocket::handleGetRequest(const std::string &path, const std::s
 	std::string response;
 
 	if (path.find(".php") != std::string::npos)
+	{
+		int result = checkPerms(buffer);
+		if (result == 0)
+			return (callErrorFiles(405));
+		if (result > 1)
+			return (callErrorFiles(result));
 		return executeCGIScript("/usr/bin/php", path, "", "");
+	}
 	else if (buffer.find("Accept: text/html") != std::string::npos)
 		response = getFileInfo(path, 0, buffer);
 	else
