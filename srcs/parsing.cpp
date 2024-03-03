@@ -6,7 +6,6 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 	std::istringstream request(buffer);
 	std::string method, path, line, path_cpy;
 	request >> method >> path;
-	std::cout << "request = " << method << std::endl;
 	it = currentServ.getServConf("web_root");
 	if (it != currentServ.getConfEnd())
 	{
@@ -68,7 +67,6 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 			path_cpy = path_cpy.substr(0, pos);
 		}
 	}
-	std::cout << "trigger = " << trigger << std::endl;
 	return (trigger);
 }
 
@@ -181,13 +179,11 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 	}
 	else
 		trigger = 1;
-	std::cout << "TRIGGER = " << trigger << std::endl;
 	if (trigger == 0 || trigger == 2)
 	{
 		response[1] = callErrorFiles(403);
 		return (response);
 	}
-	std::cout << "FILENAME = " << path << std::endl;
 	FILE * fin;
 	fin = fopen(path.c_str(), "rb");
 	if (fin == NULL)
@@ -200,6 +196,7 @@ std::map<int, std::string> ServerSocket::parseFileInfo(std::string path)
 
 void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int index, int ind_serv)
 {
+	(void) index;
 	std::map<std::string, std::string> tmp;
 	for (size_t i = 0; i < tmpLine.size(); i++)
 	{
@@ -241,9 +238,6 @@ void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int in
 			std::cerr << "Error in location conf" << std::endl;
 			exit(1);
 		}
-		std::cout << "index: " << index << " "
-				  << "key: " << key << " "
-				  << "value: " << value << std::endl;
 	}
 	server[ind_serv].setServLocation(tmp);
 	// nb_locations = index + 1; // how many locations in config file
@@ -265,7 +259,7 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 	}
 	if (file.peek() == EOF)
 	{
-		std::cout << "Error: configuration file empty" << std::endl;
+		std::cerr << "Error: configuration file empty" << std::endl;
 		exit(1);
 	}
 	std::string line;
@@ -345,7 +339,6 @@ void ServerSocket::readConfigFile(const std::string &configFile)
 							exit(1);
 						}
 						server[ind_serv].setServError(key, value);
-						std::cout << "server_error key: " << value << "server_error value: " << key << std::endl;
 					}
 					else
 					{

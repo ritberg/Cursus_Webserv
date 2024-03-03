@@ -1,6 +1,6 @@
 #include "webserv.hpp"
 
-std::string ServerSocket::getFileInfo(std::string path, int type, const std::string buffer)
+std::string ServerSocket::getFileInfo(std::string path, int type)
 {
 	FILE * fin;
 	std::vector<char> bufferFile;
@@ -27,14 +27,6 @@ std::string ServerSocket::getFileInfo(std::string path, int type, const std::str
 		it = currentServ.getServConf("web_root");
 		if (it != currentServ.getConfEnd())
 			path = it->second + path;
-	}
-	if (return_value != -1)
-	{
-		int result = checkPerms(buffer);
-		if (result > 1)
-			return (callErrorFiles(result));
-		else if (result == 0)
-			return (callErrorFiles(405));
 	}
 	path_cpy = path;
 	if (type == 0)
@@ -99,9 +91,9 @@ std::string ServerSocket::handleGetRequest(const std::string &path, const std::s
 		return executeCGIScript("/usr/bin/php", path, "", "");
 	}
 	else if (buffer.find("Accept: text/html") != std::string::npos)
-		response = getFileInfo(path, 0, buffer);
+		response = getFileInfo(path, 0);
 	else
-		response = getFileInfo(path, 1, buffer);
+		response = getFileInfo(path, 1);
 	return (response);
 }
 
@@ -204,8 +196,7 @@ std::string ServerSocket::handleHttpRequest(std::string &buffer)
 	std::string method, path, line, protocol, path_cpy;
 	request >> method >> path >> protocol;
 	int result = 1;
-	if (method == "DELETE" || method == "POST")
-		result = checkPerms(buffer);
+	result = checkPerms(buffer);
 
 	if (result > 1)
 		return (callErrorFiles(result));

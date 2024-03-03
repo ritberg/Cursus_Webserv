@@ -18,7 +18,7 @@
 #include <vector>
 #include <sys/stat.h>
 
-#define MAX_CLIENTS 50
+#define MAX_CLIENTS 32
 
 class ServerSocket
 {
@@ -38,9 +38,9 @@ class ServerSocket
 		std::vector<std::string> uploaded_files;
 		//char **readBuffer
 		std::string	*readBuffer;
-		bool _check(int socket_ID);//
-		int _receive(int socket_ID); //
-		int _respond(int socket_ID); //
+		bool _check(int socket_ID);
+		int _receive(int socket_ID);
+		int _respond(int socket_ID);
 
 	public:
 		ServerSocket();
@@ -56,7 +56,7 @@ class ServerSocket
         std::string buildErrorFiles(const std::string error);
         int checkPerms(const std::string &buffer);
         std::map<int, std::string> parseFileInfo(std::string path);
-        std::string getFileInfo(std::string path, int type, const std::string buffer);
+        std::string getFileInfo(std::string path, int type);
         std::string handleHttpRequest(std::string &buffer);
         std::string handleDeleteRequest(const std::string& path);
         std::string handlePostRequest(const std::string &path, const std::string &buffer);
