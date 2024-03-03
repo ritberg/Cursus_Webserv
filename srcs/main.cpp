@@ -1,8 +1,6 @@
 #include "webserv.hpp"
 
-ServerSocket::ServerSocket() : max_socket(0)
-{
-}
+ServerSocket::ServerSocket() : max_socket(0) {}
 
 ServerSocket::ServerSocket(const ServerSocket &copy)
 {
@@ -26,9 +24,12 @@ ServerSocket::~ServerSocket()
 {
 	delete[] server;
 	delete[] readBuffer;
-	std::cout << "memory was freed" << std::endl;
+	std::cout << "Memory was freed" << std::endl;
 }
 
+/*
+This function calls parsing functions and initalises server sockets.
+*/
 void ServerSocket::Init(const std::string &configFile)
 {
 	std::ifstream file(configFile);
@@ -147,6 +148,9 @@ void ServerSocket::Init(const std::string &configFile)
 		Loop(end);
 }
 
+/*
+This mini-function checks whether socket_ID is a server or not.
+*/
 bool ServerSocket::_check(int socket_ID)
 {
 	std::vector<int>::iterator it;
@@ -158,10 +162,12 @@ bool ServerSocket::_check(int socket_ID)
 	return false;
 }
 
+/*
+Non-blocking function to receive requests from the clients.
+*/
 int ServerSocket::_receive(int socket_ID)
 {
 	int socket_ID_tmp = socket_ID - 3 - servPortsCount; 
-	//buffer.clear();
 	if (socket_ID_tmp > MAX_CLIENTS + 1)
 		return 0;
 	int bytesRead;
@@ -188,14 +194,16 @@ int ServerSocket::_receive(int socket_ID)
 	}
 	else
 		return -1;
-	//std::cout << "buffer " << buffer << std::endl;
 	return bytesRead;
 }
 
+/*
+This function builds a response and sends it back to the client.
+*/
 int ServerSocket::_respond(int socket_ID)
 {
 	int socket_ID_tmp = socket_ID - 3 - servPortsCount; 
-    // std::cout << "buffer " << readBuffer[socket_ID_tmp] << std::endl;
+    // std::cout << "buffer " << readBuffer[socket_ID_tmp] << std::endl; // DEBUG PRINT
 	if (socket_ID_tmp > MAX_CLIENTS + 1)
 		return -1;
 	if (readBuffer[socket_ID_tmp].length() == 0)
@@ -240,17 +248,20 @@ int ServerSocket::_respond(int socket_ID)
     return ret;
 }
 
+
+/*
+This is the core of the program, this is where we select, accept,
+and either receive requests from the client or respond to them.
+*/
 void ServerSocket::Loop(bool end)
 {
 	int ret, ready = 0, new_sd;
 	bool close_connection;
 
-	//std::string buffer;
 	read_sockets = active_sockets;
 	FD_ZERO(&active_write);
 	while (!end)
 	{
-		//usleep(500);
 		struct timeval tv;
 		tv.tv_sec = 3;
 		tv.tv_usec = 0;
@@ -264,7 +275,6 @@ void ServerSocket::Loop(bool end)
 			std::cerr << "Error in select(): " << strerror(errno) << std::endl;
 			return;
 		}
-		std::cout << "max socket 1 = " << max_socket << std::endl;
 		if (ret == 0)
 			std::cout << "IN TIMEOUT" << std::endl;
 		ready = ret;
@@ -276,12 +286,7 @@ void ServerSocket::Loop(bool end)
 			{
 				if (_check(socket_ID))
 				{
-					std::cout << "IN ACCEPT" << std::endl;
-					// struct sockaddr_in clients;
-					// socklen_t clientsize = sizeof(clients);
-					// new_sd = accept(socket_ID, (struct sockaddr *)&clients, &clientsize);
 					new_sd = accept(socket_ID, NULL, NULL);
-					std::cout << "NEW_SD = " << new_sd << std::endl;
 					if (new_sd < 0)
 					{
 						if (errno != EWOULDBLOCK)
@@ -300,14 +305,12 @@ void ServerSocket::Loop(bool end)
 					close_connection = false;
 					if (FD_ISSET(socket_ID, &read_sockets))
 					{
-						std::cout << "IN READ" << std::endl;
 						ret = _receive(socket_ID);
 						if (ret == 0)
 						{
 							std::cout << "Connection with client " << socket_ID << " was closed" << std::endl;
 							FD_CLR(socket_ID, &active_sockets);
 							close(socket_ID);
-							//close_connection = true;
 						}
 						else if (ret == -1)
 						{
@@ -323,7 +326,6 @@ void ServerSocket::Loop(bool end)
 					}
 					else if (FD_ISSET(socket_ID, &write_sockets))
 					{
-						std::cout << "IN SEND" << std::endl;
 						ret = _respond(socket_ID);
 						if (ret == -1)
 							std::cerr << "Send() error" << std::endl;
@@ -351,6 +353,9 @@ void ServerSocket::Loop(bool end)
 	}
 }
 
+/*
+The main function launches the program with the correct configuration file.
+*/
 int main(int argc, char **argv)
 {
 	if (argc == 2)

@@ -20,6 +20,10 @@ servers &servers::operator=(const servers &copy)
 
 servers::~servers() {}
 
+/*
+We have to handle multiple servers. They are saved as a vector of our class "servers".
+All the functions below return an iterator because it's the only way to access the memory.
+*/
 
 std::map<std::string, std::string>::iterator servers::getServConf(const std::string &key)
 {

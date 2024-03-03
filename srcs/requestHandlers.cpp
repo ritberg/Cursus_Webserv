@@ -42,7 +42,6 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 		fin = fopen(path.c_str(), "rb");
 	if (fin == NULL || return_value == -1)
 	{
-		//if the file doesn't exist, a special file is made to display error 404
 		std::map<std::string, std::string>::iterator it;
 		it = currentServ.getServError(std::to_string(404));
 		if (it != currentServ.getErrorEnd())
@@ -62,17 +61,14 @@ std::string ServerSocket::getFileInfo(std::string path, int type)
 		fclose(fin);
 		return (callErrorFiles(404));
 	}
-	//here we calculate the size of the file
 	fseek(fin, 0, SEEK_END);
 	long file_len = ftell(fin);
 	rewind(fin);
-	//the characters are placed in a vector because we need an array and character array interpret some characters
 	bufferFile.clear();
 	bufferFile.resize(file_len);
 	fread(&bufferFile[0], 1, file_len, fin);
 	fclose(fin);
-	std::string content(bufferFile.begin(), bufferFile.end());
-	//assembly of the response
+	std::string content(bufferFile.begin(), bufferFile.end()); 
 	response = "HTTP/1.1 200 OK\r\n\r\n" + content;
 	return (response);
 }
@@ -102,12 +98,16 @@ std::string extractFilename(const std::string& header) {
 	size_t filenamePos = header.find("filename=");
 	if (filenamePos != std::string::npos)
 	{
-		filename = header.substr(filenamePos + 10); // filename =""
+		filename = header.substr(filenamePos + 10);
 		filename = filename.substr(0, filename.find("\""));
 	}
 	return filename;
 }
 
+/*
+This function finds the boundaries in the POST request and extracts the binary body
+of the uploaded file.
+*/
 std::string ServerSocket::handlePostRequest(const std::string& path, const std::string& buffer) {
 	std::string body;
 	std::string boundary;
@@ -164,10 +164,10 @@ std::string ServerSocket::handlePostRequest(const std::string& path, const std::
 
 	if (path == "/upload.html")
 	{
-		std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);    // Save the uploaded image with the extracted filename
+		std::ofstream outfile(("uploaded_files/" + filename).c_str(), std::ios::binary);  // Save the uploaded image with the extracted filename
 		if (outfile.fail())
 			return "No file was chosen";
-		outfile << body; // Put the body of the uploaded file into the folder
+		outfile << body;                                                                  // Put the body of the uploaded file into the folder
 		outfile.close();
 
 		return handleGetRequest(path, buffer) + "\nSuccessfully uploaded!<br>";
@@ -190,6 +190,11 @@ std::string ServerSocket::handleDeleteRequest(const std::string& path)
 	return "HTTP/1.1 404 Not Found\r\n\r\n\nResource not found";
 }
 
+/*
+This function is called in the main loop in _respond() function.
+It differentiates between GET, POST and DELETE methods (requests).
+CheckPerms checks "deny all" and allowed methods.
+*/
 std::string ServerSocket::handleHttpRequest(std::string &buffer)
 {
 	std::istringstream request(buffer);

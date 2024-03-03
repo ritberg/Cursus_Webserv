@@ -36,7 +36,6 @@ class ServerSocket
 		int currentSocket;
 		fd_set active_sockets, active_write, read_sockets, write_sockets;
 		std::vector<std::string> uploaded_files;
-		//char **readBuffer
 		std::string	*readBuffer;
 		bool _check(int socket_ID);
 		int _receive(int socket_ID);
@@ -49,7 +48,7 @@ class ServerSocket
 		~ServerSocket();
 
 		void Init(const std::string &configFile);
-        void Loop(bool end); //
+        void Loop(bool end);
         void readConfigFile(const std::string &configFile);
         void parseLocation(const std::vector<std::string>& tmpLine, int index, int ind_serv);
         std::string callErrorFiles(const int error);

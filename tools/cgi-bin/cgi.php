@@ -1,9 +1,5 @@
 <?php
-// HTML content
 
-// Check if the form has been submitted
-//if ($_SERVER['REQUEST_METHOD'] == 'GET') {
-    // Retrieve user input from the form
     echo "<html><head><title>Photo Upload CGI</title></head><body>";
     echo "<h1>Photo uploading</h1>";
     echo "<form action='' method='post' enctype='multipart/form-data'>";
@@ -23,14 +19,13 @@
     echo "  <input type='button' value='Delete' onclick='sendDeleteRequest()'>";
     echo "</form>";
 
-//}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $filename = getenv('FILENAME');
     $path = "/Users/mmakarov/Documents/webservIntra/uploaded_files/" . $filename;
     $file = fopen($path, 'c');
     while (FALSE !== ($line = fgets(STDIN))) {
         fwrite($file, $line);
-        //echo $line;
     }
     echo "\nSuccessfully uploaded!<br>";
     fclose($file);

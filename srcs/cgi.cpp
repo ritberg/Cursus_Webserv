@@ -1,5 +1,8 @@
 #include "webserv.hpp"
 
+/*
+This function executes scripts that have a shebang. In our case, it's cgi.php but it can be .py or .pl.
+*/
 std::string ServerSocket::executeCGIScript(const std::string &shebang, const std::string &cgiScriptPath, const std::string &body, const std::string &filename)
 {
 	std::string response_data;
@@ -50,8 +53,7 @@ std::string ServerSocket::executeCGIScript(const std::string &shebang, const std
 	envp[3] = strdup("PATH_TRANSLATED=");
 	envp[4] = strdup(std::string("QUERY_STRING=").append(getQueryString(currentPath)).c_str());
 	envp[5] = strdup(std::string("SERVER_NAME=").append(serverName).c_str());
-	/* for (int i = 0; envp[i] != 0; i++) */
-	/* 	std::cout << "ENVP[" << i << "]: " << envp[i] << std::endl; */
+
 	if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1)
 	{
 		perror("In pipe");

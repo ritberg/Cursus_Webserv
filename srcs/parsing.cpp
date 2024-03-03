@@ -17,9 +17,7 @@ int	ServerSocket::checkPerms(const std::string &buffer)
 			if(s.st_mode & S_IFDIR)
 			{
 				if (path_cpy[path_cpy.length() - 1] != '/')
-				{
 					path_cpy.append("/");
-				}
 			}
 		}
 		else
@@ -240,7 +238,6 @@ void ServerSocket::parseLocation(const std::vector<std::string> &tmpLine, int in
 		}
 	}
 	server[ind_serv].setServLocation(tmp);
-	// nb_locations = index + 1; // how many locations in config file
 }
 
 void ServerSocket::readConfigFile(const std::string &configFile)
